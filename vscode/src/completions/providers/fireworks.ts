@@ -2,13 +2,13 @@ import {
     type AuthStatus,
     type AutocompleteContextSnippet,
     type AutocompleteTimeouts,
+    type ClientConfiguration,
+    type ClientConfigurationWithAccessToken,
     type CodeCompletionsClient,
     type CodeCompletionsParams,
     type CompletionResponse,
     type CompletionResponseGenerator,
     CompletionStopReason,
-    type Configuration,
-    type ConfigurationWithAccessToken,
     NetworkError,
     PromptString,
     TracedError,
@@ -63,7 +63,7 @@ export interface FireworksOptions {
     anonymousUserID?: string
     timeouts: AutocompleteTimeouts
     config: Pick<
-        ConfigurationWithAccessToken,
+        ClientConfigurationWithAccessToken,
         'accessToken' | 'autocompleteExperimentalFireworksOptions'
     >
     authStatus: Pick<
@@ -200,7 +200,7 @@ class FireworksProvider extends Provider {
         'userCanUpgrade' | 'isDotCom' | 'endpoint' | 'isFireworksTracingEnabled'
     >
     private isLocalInstance: boolean
-    private fireworksConfig?: Configuration['autocompleteExperimentalFireworksOptions']
+    private fireworksConfig?: ClientConfiguration['autocompleteExperimentalFireworksOptions']
     private promptExtractor: FIMModelSpecificPromptExtractor
     // Todo: This variable is used to introduce an additional delay to collect the data on impact of latency on user experience.
     // Todo: Delete this variable once the data is collected.

@@ -1,10 +1,9 @@
 import * as vscode from 'vscode'
 
 import {
+    type ClientConfigurationWithAccessToken,
     type CodyIDE,
-    type Configuration,
     type ConfigurationUseContext,
-    type ConfigurationWithAccessToken,
     DOTCOM_URL,
     OLLAMA_DEFAULT_URL,
     PromptString,
@@ -30,7 +29,7 @@ interface ConfigGetter {
  */
 export function getConfiguration(
     config: ConfigGetter = vscode.workspace.getConfiguration()
-): Configuration {
+): ClientConfiguration {
     const isTesting = process.env.CODY_TESTING === 'true'
 
     function getHiddenSetting<T>(configKey: string, defaultValue?: T): T {
@@ -56,7 +55,7 @@ export function getConfiguration(
     }
 
     let autocompleteAdvancedProvider = config.get<
-        | Configuration['autocompleteAdvancedProvider']
+        | ClientConfiguration['autocompleteAdvancedProvider']
         | 'unstable-ollama'
         | 'unstable-fireworks'
         | 'experimental-openaicompatible'
@@ -220,7 +219,7 @@ function sanitizeCodebase(codebase: string | undefined): string {
     return codebase.replace(protocolRegexp, '').trim().replace(trailingSlashRegexp, '')
 }
 
-export function getConfigWithEndpoint(): Omit<ConfigurationWithAccessToken, 'accessToken'> {
+export function getConfigWithEndpoint(): Omit<ClientConfigurationWithAccessToken, 'accessToken'> {
     const config = getConfiguration()
     const isTesting = process.env.CODY_TESTING === 'true'
     const serverEndpoint =
@@ -228,7 +227,7 @@ export function getConfigWithEndpoint(): Omit<ConfigurationWithAccessToken, 'acc
     return { ...config, serverEndpoint }
 }
 
-export const getFullConfig = async (): Promise<ConfigurationWithAccessToken> => {
+export const getFullConfig = async (): Promise<ClientConfigurationWithAccessToken> => {
     const accessToken =
         vscode.workspace.getConfiguration().get<string>('cody.accessToken') ||
         (await getAccessToken()) ||

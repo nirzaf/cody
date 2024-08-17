@@ -1,7 +1,7 @@
 import {
     type AuthStatus,
+    type ClientConfigurationWithAccessToken,
     type CodeCompletionsClient,
-    type ConfigurationWithAccessToken,
     FeatureFlag,
     type Model,
     ModelUsage,
@@ -38,7 +38,7 @@ export async function createProviderConfigFromVSCodeConfig(
     authStatus: AuthStatus,
     model: string | undefined,
     provider: string,
-    config: ConfigurationWithAccessToken
+    config: ClientConfigurationWithAccessToken
 ): Promise<ProviderConfig | null> {
     switch (provider) {
         case 'azure-openai':
@@ -93,7 +93,7 @@ export async function createProviderConfigFromVSCodeConfig(
 }
 
 export async function createProviderConfig(
-    config: ConfigurationWithAccessToken,
+    config: ClientConfigurationWithAccessToken,
     client: CodeCompletionsClient,
     authStatus: AuthStatus
 ): Promise<ProviderConfig | null> {

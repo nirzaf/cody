@@ -2,9 +2,9 @@ import type { URI } from 'vscode-uri'
 
 import type {
     AuthStatus,
+    ClientConfigurationWithEndpoint,
     ClientStateForWebview,
     CodyIDE,
-    ConfigurationWithEndpoint,
     ContextItem,
     EnhancedContextContextT,
     MentionQuery,
@@ -288,7 +288,7 @@ export interface ExtensionTranscriptMessage {
  */
 export interface ConfigurationSubsetForWebview
     extends Pick<
-        ConfigurationWithEndpoint,
+        ClientConfigurationWithEndpoint,
         | 'experimentalNoodle'
         | 'serverEndpoint'
         | 'agentIDE'

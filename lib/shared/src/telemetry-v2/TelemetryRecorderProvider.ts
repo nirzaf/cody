@@ -10,9 +10,9 @@ import { TimestampTelemetryProcessor } from '@sourcegraph/telemetry/dist/process
 
 import {
     CONTEXT_SELECTION_ID,
+    type ClientConfiguration,
+    type ClientConfigurationWithAccessToken,
     type CodyIDE,
-    type Configuration,
-    type ConfigurationWithAccessToken,
 } from '../configuration'
 import { SourcegraphGraphQLAPIClient } from '../sourcegraph-api/graphql'
 import type { LogEventMode } from '../sourcegraph-api/graphql/client'
@@ -63,7 +63,7 @@ export class TelemetryRecorderProvider extends BaseTelemetryRecorderProvider<
 > {
     constructor(
         extensionDetails: ExtensionDetails,
-        config: ConfigurationWithAccessToken,
+        config: ClientConfigurationWithAccessToken,
         authStatusProvider: AuthStatusProvider,
         anonymousUserID: string,
         legacyBackcompatLogEventMode: LogEventMode
@@ -126,7 +126,7 @@ export class MockServerTelemetryRecorderProvider extends BaseTelemetryRecorderPr
 > {
     constructor(
         extensionDetails: ExtensionDetails,
-        config: Configuration,
+        config: ClientConfiguration,
         authStatusProvider: AuthStatusProvider,
         anonymousUserID: string
     ) {
@@ -147,7 +147,7 @@ export class MockServerTelemetryRecorderProvider extends BaseTelemetryRecorderPr
  */
 class ConfigurationMetadataProcessor implements TelemetryProcessor {
     constructor(
-        private config: Configuration,
+        private config: ClientConfiguration,
         private authStatusProvider: AuthStatusProvider
     ) {}
 
