@@ -1,8 +1,8 @@
 import {
+    type AuthCredentials,
     type AuthStatus,
     type AutocompleteContextSnippet,
     type AutocompleteTimeouts,
-    type ClientConfigurationWithAccessToken,
     type CodeCompletionsClient,
     type CodeCompletionsParams,
     type CompletionResponseGenerator,
@@ -46,7 +46,7 @@ interface OpenAICompatibleOptions {
     maxContextTokens?: number
     client: CodeCompletionsClient
     timeouts: AutocompleteTimeouts
-    config: Pick<ClientConfigurationWithAccessToken, 'accessToken'>
+    auth: Pick<AuthCredentials, 'accessToken'>
     authStatus: Pick<AuthStatus, 'userCanUpgrade' | 'isDotCom' | 'endpoint'>
 }
 

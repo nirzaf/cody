@@ -68,7 +68,10 @@ export class TelemetryRecorderProvider extends BaseTelemetryRecorderProvider<
         anonymousUserID: string,
         legacyBackcompatLogEventMode: LogEventMode
     ) {
-        const client = new SourcegraphGraphQLAPIClient(config)
+        const client = new SourcegraphGraphQLAPIClient({
+            auth: config as any /* TODO!(sqs) */,
+            config: config,
+        })
         const clientName = extensionDetails.telemetryClientName
             ? extensionDetails.telemetryClientName
             : `${extensionDetails.ide || 'unknown'}.Cody`

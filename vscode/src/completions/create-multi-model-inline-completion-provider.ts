@@ -1,6 +1,7 @@
 import { type MultimodelSingleModelConfig, isDotCom } from '@sourcegraph/cody-shared'
 import _ from 'lodash'
 import * as vscode from 'vscode'
+import { getAuthCredentials } from '../configuration'
 import { logDebug } from '../log'
 import type { InlineCompletionItemProviderArgs } from './create-inline-completion-item-provider'
 import type { MultiModelCompletionsResults } from './inline-completion-item-provider'
@@ -99,6 +100,8 @@ export async function createInlineCompletionItemFromMultipleProviders({
         }
     }
 
+    const auth = await getAuthCredentials()
+
     const allPromises = multiModelConfigsList.map(async currentProviderConfig => {
         const newConfig = _.cloneDeep(config)
         // Override some config to ensure we are not logging extra events.
@@ -116,7 +119,8 @@ export async function createInlineCompletionItemFromMultipleProviders({
             authStatus,
             currentProviderConfig.model,
             currentProviderConfig.provider,
-            newConfig
+            newConfig,
+            auth
         )
         if (providerConfig) {
             const authStatus = authProvider.getAuthStatus()

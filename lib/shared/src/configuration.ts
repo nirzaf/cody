@@ -4,6 +4,16 @@ import type { FileURI } from './common/uri'
 
 import type { PromptString } from './prompt/prompt-string'
 
+/**
+ * The user's authentication credentials, which are stored separately from the rest of the
+ * configuration.
+ */
+export interface AuthCredentials {
+    serverEndpoint: string
+    accessToken: string | null
+    customHeaders?: Record<string, string>
+}
+
 export type ConfigurationUseContext = 'embeddings' | 'keyword' | 'none' | 'blended' | 'unified'
 
 /**
@@ -119,8 +129,6 @@ export type ClientConfigurationWithEndpoint = Omit<ClientConfigurationWithAccess
 
 export interface ClientConfigurationWithAccessToken extends ClientConfiguration {
     serverEndpoint: string
-    /** The access token, which is stored in the secret storage (not configuration). */
-    accessToken: string | null
 }
 
 export interface OllamaOptions {

@@ -2,7 +2,7 @@ import type * as vscode from 'vscode'
 
 import {
     ChatClient,
-    type ClientConfigurationWithAccessToken,
+    type ClientConfiguration,
     type CodeCompletionsClient,
     type ConfigWatcher,
     type Guardrails,
@@ -16,6 +16,7 @@ import {
 
 import { ContextAPIClient } from './chat/context/contextAPIClient'
 import { createClient as createCodeCompletionsClient } from './completions/client'
+import { getAuthCredentials } from './configuration'
 import type { PlatformContext } from './extension.common'
 import type { LocalEmbeddingsConfig, LocalEmbeddingsController } from './local-context/local-embeddings'
 import type { SymfRunner } from './local-context/symf'
@@ -36,16 +37,16 @@ interface ExternalServices {
 }
 
 type ExternalServicesConfiguration = Pick<
-    ClientConfigurationWithAccessToken,
-    | 'serverEndpoint'
+    ClientConfiguration,
     | 'codebase'
     | 'useContext'
     | 'customHeaders'
-    | 'accessToken'
     | 'debugVerbose'
     | 'experimentalTracing'
+    | 'isRunningInsideAgent'
+    | 'agentIDE'
 > &
-    LocalEmbeddingsConfig &
+    Pick<LocalEmbeddingsConfig, 'testingModelConfig'> &
     GuardrailsClientConfig
 
 export async function configureExternalServices(
@@ -62,10 +63,16 @@ export async function configureExternalServices(
     authProvider: AuthProvider
 ): Promise<ExternalServices> {
     const initialConfig = config.get()
-    const sentryService = platform.createSentryService?.(initialConfig)
-    const openTelemetryService = platform.createOpenTelemetryService?.(initialConfig)
-    const completionsClient = platform.createCompletionsClient(initialConfig, logger)
-    const codeCompletionsClient = createCodeCompletionsClient(initialConfig, logger)
+    const initialAuth = await getAuthCredentials()
+    const configAndAuth = {
+        config: initialConfig,
+        auth: initialAuth,
+    }
+
+    const sentryService = platform.createSentryService?.(initialConfig, initialAuth)
+    const openTelemetryService = platform.createOpenTelemetryService?.(configAndAuth)
+    const completionsClient = platform.createCompletionsClient(initialAuth, logger)
+    const codeCompletionsClient = createCodeCompletionsClient(initialAuth, logger)
 
     const symfRunner = platform.createSymfRunner?.(context, completionsClient, authProvider)
 
@@ -76,7 +83,10 @@ export async function configureExternalServices(
         )
     }
 
-    const localEmbeddings = await platform.createLocalEmbeddingsController?.(initialConfig)
+    const localEmbeddings = await platform.createLocalEmbeddingsController?.({
+        testingModelConfig: initialConfig.testingModelConfig,
+        auth: initialAuth,
+    })
 
     const chatClient = new ChatClient(completionsClient, () => authProvider.getAuthStatus())
 
@@ -92,13 +102,15 @@ export async function configureExternalServices(
         localEmbeddings,
         symfRunner,
         contextAPIClient,
-        onConfigurationChange: newConfig => {
-            sentryService?.onConfigurationChange(newConfig)
-            openTelemetryService?.onConfigurationChange(newConfig)
-            completionsClient.onConfigurationChange(newConfig)
-            codeCompletionsClient.onConfigurationChange(newConfig)
+        onConfigurationChange: async newConfig => {
+            // TODO!(sqs): invert flow
+            const auth = await getAuthCredentials()
+            sentryService?.onAuthChange(auth)
+            openTelemetryService?.onConfigurationChange({ config: newConfig, auth })
+            completionsClient.onConfigurationChange(auth)
+            codeCompletionsClient.onConfigurationChange(auth)
             guardrails.onConfigurationChange(newConfig)
-            void localEmbeddings?.setAccessToken(newConfig.serverEndpoint, newConfig.accessToken)
+            void localEmbeddings?.setAuth(auth)
         },
     }
 }

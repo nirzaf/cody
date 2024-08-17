@@ -1,6 +1,6 @@
 import {
+    type AuthCredentials,
     type BrowserOrNodeResponse,
-    type ClientConfigurationWithAccessToken,
     addCustomUserAgent,
     addTraceparent,
     isDotCom,
@@ -25,33 +25,25 @@ class UpstreamHealthProvider implements vscode.Disposable {
     private lastUpstreamLatency?: number
     private lastGatewayLatency?: number
 
-    private config: Pick<
-        ClientConfigurationWithAccessToken,
-        'serverEndpoint' | 'customHeaders' | 'accessToken'
-    > | null = null
+    private auth: AuthCredentials | null = null
     private nextTimeoutId: NodeJS.Timeout | null = null
 
     public getUpstreamLatency(): number | undefined {
-        if (!this.config) {
+        if (!this.auth) {
             return undefined
         }
         return this.lastUpstreamLatency
     }
 
     public getGatewayLatency(): number | undefined {
-        if (!this.config) {
+        if (!this.auth) {
             return undefined
         }
         return this.lastGatewayLatency
     }
 
-    public onConfigurationChange(
-        newConfig: Pick<
-            ClientConfigurationWithAccessToken,
-            'serverEndpoint' | 'customHeaders' | 'accessToken'
-        >
-    ) {
-        this.config = newConfig
+    public onAuthChange(newAuth: AuthCredentials) {
+        this.auth = newAuth
         this.lastUpstreamLatency = undefined
         this.lastGatewayLatency = undefined
 
@@ -74,27 +66,27 @@ class UpstreamHealthProvider implements vscode.Disposable {
                 return
             }
 
-            if (!this.config) {
+            if (!this.auth) {
                 throw new Error('UpstreamHealthProvider not initialized')
             }
 
-            const sharedHeaders = new Headers(this.config.customHeaders as HeadersInit)
+            const sharedHeaders = new Headers(this.auth.customHeaders as HeadersInit)
             sharedHeaders.set('Content-Type', 'application/json; charset=utf-8')
             addTraceparent(sharedHeaders)
             addCustomUserAgent(sharedHeaders)
 
             const upstreamHeaders = new Headers(sharedHeaders)
-            if (this.config.accessToken) {
-                upstreamHeaders.set('Authorization', `token ${this.config.accessToken}`)
+            if (this.auth.accessToken) {
+                upstreamHeaders.set('Authorization', `token ${this.auth.accessToken}`)
             }
-            const url = new URL('/healthz', this.config.serverEndpoint)
+            const url = new URL('/healthz', this.auth.serverEndpoint)
             const upstreamResult = await wrapInActiveSpan('upstream-latency.upstream', span => {
                 span.setAttribute('sampled', true)
                 return measureLatencyToUri(upstreamHeaders, url.toString())
             })
 
             // We don't want to congest the network so we run the test serially
-            if (isDotCom(this.config.serverEndpoint)) {
+            if (isDotCom(this.auth.serverEndpoint)) {
                 const gatewayHeaders = new Headers(sharedHeaders)
                 const uri = 'https://cody-gateway.sourcegraph.com/-/__version'
                 const gatewayResult = await wrapInActiveSpan('upstream-latency.gateway', span => {

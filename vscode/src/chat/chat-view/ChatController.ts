@@ -64,7 +64,7 @@ import {
 import type { startTokenReceiver } from '../../auth/token-receiver'
 import { getContextFileFromUri } from '../../commands/context/file-path'
 import { getContextFileFromCursor, getContextFileFromSelection } from '../../commands/context/selection'
-import { getConfigWithEndpoint, getConfiguration, getFullConfig } from '../../configuration'
+import { getAuthCredentialsEndpoint, getConfiguration, getFullConfig } from '../../configuration'
 import type { EnterpriseContextFactory } from '../../context/enterprise-context-factory'
 import { type RemoteSearch, RepoInclusion } from '../../context/remote-search'
 import type { Repo } from '../../context/repo-fetcher'
@@ -461,10 +461,6 @@ export class ChatController implements vscode.Disposable, vscode.WebviewViewProv
                     this.authProvider.redirectToEndpointLogin(message.endpoint)
                     break
                 }
-                if (message.authKind === 'offline') {
-                    this.authProvider.auth({ endpoint: '', token: '', isOfflineMode: true })
-                    break
-                }
                 if (message.authKind === 'simplified-onboarding') {
                     const endpoint = DOTCOM_URL.href
 
@@ -567,7 +563,8 @@ export class ChatController implements vscode.Disposable, vscode.WebviewViewProv
     }
 
     private async getConfigForWebview(): Promise<ConfigurationSubsetForWebview & LocalEnv> {
-        const config = getConfigWithEndpoint()
+        const { serverEndpoint } = getAuthCredentialsEndpoint()
+        const config = getConfiguration()
         const experimentalSmartApply = await this.isSmartApplyEnabled()
 
         const webviewType =
@@ -579,7 +576,7 @@ export class ChatController implements vscode.Disposable, vscode.WebviewViewProv
                 ? config.agentExtensionVersion
                 : VSCEVersion,
             uiKindIsWeb: vscode.env.uiKind === vscode.UIKind.Web,
-            serverEndpoint: config.serverEndpoint,
+            serverEndpoint,
             experimentalNoodle: config.experimentalNoodle,
             experimentalSmartApply,
             webviewType,
@@ -1195,12 +1192,7 @@ export class ChatController implements vscode.Disposable, vscode.WebviewViewProv
     }
 
     private postChatModels(): void {
-        const authStatus = this.authProvider.getAuthStatus()
-        if (!authStatus?.isLoggedIn) {
-            return
-        }
         const models = modelsService.getModels(ModelUsage.Chat)
-
         void this.postMessage({
             type: 'chatModels',
             models,

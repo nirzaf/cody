@@ -8,11 +8,11 @@ import { escapeRegExp } from 'lodash'
 import semver from 'semver'
 import type { AuthStatus } from '../../auth/types'
 import { dependentAbortController, onAbort } from '../../common/abortController'
-import type { ClientConfiguration, ClientConfigurationWithAccessToken } from '../../configuration'
+import type { AuthCredentials, ClientConfiguration } from '../../configuration'
 import { logDebug, logError } from '../../logger'
 import { addTraceparent, wrapInActiveSpan } from '../../tracing'
 import { isError } from '../../utils'
-import { DOTCOM_URL, isDotCom } from '../environments'
+import { DOTCOM_URL } from '../environments'
 import { isAbortError } from '../errors'
 import {
     CHAT_INTENT_QUERY,
@@ -538,11 +538,10 @@ export interface event {
     hashedLicenseKey?: string
 }
 
-export type GraphQLAPIClientConfig = Pick<
-    ClientConfigurationWithAccessToken,
-    'serverEndpoint' | 'accessToken' | 'customHeaders'
-> &
-    Pick<Partial<ClientConfiguration>, 'telemetryLevel'>
+export interface GraphQLAPIClientConfig {
+    auth: AuthCredentials
+    config: Pick<Partial<ClientConfiguration>, 'telemetryLevel'>
+}
 
 export let customUserAgent: string | undefined
 export function addCustomUserAgent(headers: Headers): void {
@@ -593,13 +592,9 @@ export class SourcegraphGraphQLAPIClient {
         this.anonymousUserID = anonymousUID
     }
 
-    public isDotCom(): boolean {
-        return isDotCom(this.config.serverEndpoint)
-    }
-
     // Gets the server endpoint for this client.
     public get endpoint(): string {
-        return this.config.serverEndpoint
+        return this.config.auth.serverEndpoint
     }
 
     public async getSiteVersion(): Promise<string | Error> {
@@ -1167,7 +1162,7 @@ export class SourcegraphGraphQLAPIClient {
         if (this.isAgentTesting) {
             return {}
         }
-        if (this.config?.telemetryLevel === 'off') {
+        if (this.config?.config.telemetryLevel === 'off') {
             return {}
         }
         /**
@@ -1351,10 +1346,10 @@ export class SourcegraphGraphQLAPIClient {
         variables: Record<string, any> = {},
         signalOrTimeout?: AbortSignal | number
     ): Promise<T | Error> {
-        const headers = new Headers(this.config.customHeaders as HeadersInit)
+        const headers = new Headers(this.config.auth.customHeaders as HeadersInit)
         headers.set('Content-Type', 'application/json; charset=utf-8')
-        if (this.config.accessToken) {
-            headers.set('Authorization', `token ${this.config.accessToken}`)
+        if (this.config.auth.accessToken) {
+            headers.set('Authorization', `token ${this.config.auth.accessToken}`)
         }
         if (this.anonymousUserID && !process.env.CODY_WEB_DONT_SET_SOME_HEADERS) {
             headers.set('X-Sourcegraph-Actor-Anonymous-UID', this.anonymousUserID)
@@ -1367,7 +1362,7 @@ export class SourcegraphGraphQLAPIClient {
 
         const url = buildGraphQLUrl({
             request: query,
-            baseUrl: this.config.serverEndpoint,
+            baseUrl: this.config.auth.serverEndpoint,
         })
 
         // Default timeout of 6 seconds.
@@ -1453,10 +1448,10 @@ export class SourcegraphGraphQLAPIClient {
         urlPath: string,
         body?: string
     ): Promise<T | Error> {
-        const headers = new Headers(this.config.customHeaders as HeadersInit)
+        const headers = new Headers(this.config.auth.customHeaders as HeadersInit)
         headers.set('Content-Type', 'application/json; charset=utf-8')
-        if (this.config.accessToken) {
-            headers.set('Authorization', `token ${this.config.accessToken}`)
+        if (this.config.auth.accessToken) {
+            headers.set('Authorization', `token ${this.config.auth.accessToken}`)
         }
         if (this.anonymousUserID && !process.env.CODY_WEB_DONT_SET_SOME_HEADERS) {
             headers.set('X-Sourcegraph-Actor-Anonymous-UID', this.anonymousUserID)
@@ -1468,7 +1463,7 @@ export class SourcegraphGraphQLAPIClient {
         // Timeout of 6 seconds.
         const signal = AbortSignal.timeout(6000)
 
-        const url = new URL(urlPath, this.config.serverEndpoint).href
+        const url = new URL(urlPath, this.config.auth.serverEndpoint).href
 
         return wrapInActiveSpan(`httpapi.fetch${queryName ? `.${queryName}` : ''}`, () =>
             fetch(url, {
@@ -1535,41 +1530,42 @@ export class ClientConfigSingleton {
         }
     }
 
+    private inFlight: Promise<CodyClientConfig | undefined> | null = null
     public async getConfig(): Promise<CodyClientConfig | undefined> {
+        const shouldFetch = this.shouldFetch()
+        if (shouldFetch === false) {
+            return this.cachedClientConfig
+        }
+
+        if (this.inFlight) {
+            return this.inFlight
+        }
+
         try {
-            switch (this.shouldFetch()) {
-                case 'sync':
-                    return this.refreshConfig()
-                // biome-ignore lint/suspicious/noFallthroughSwitchClause: This is intentional
-                case 'async':
-                    this.refreshConfig()
-                case false:
-                    return this.cachedClientConfig
-            }
+            this.inFlight = this.refreshConfig()
+            this.inFlight.finally(() => {
+                this.inFlight = null
+            })
+            return shouldFetch === 'sync' ? await this.inFlight : this.cachedClientConfig
         } catch {
             return
         }
     }
 
-    // Refetch the config if the user is signed in and it's not cached or it's older than 60 seconds
+    // Refetch the config if it's not cached or it's older than 60 seconds.
     // If the cached config is >60s old, then we will refresh it async now. In the meantime, we will
     // continue using the old version.
     //
     // Note that this means the time allowance between 'site admin disabled <chat,autocomplete,commands,etc.>
     // functionality but users can still make use of it' is double this (120s.)
     private shouldFetch(): 'sync' | 'async' | false {
-        // If the user is not logged in, we will not fetch as it will fail
-        if (!this.isSignedIn) {
-            return false
-        }
-
-        // If they are logged in but not cached, fetch the config synchronously
+        // Fetch the config synchronously if we have nothing in the cache
         if (!this.cachedClientConfig) {
             return 'sync'
         }
 
         // If the config is cached and greater than 60 seconds old, we can use the cached version
-        // but should asyncronously fetch the new config
+        // but should asynchronously fetch the new config
         if (Date.now() - this.cachedAt > 60000) {
             return 'async'
         }

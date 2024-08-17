@@ -49,7 +49,7 @@ import type { CodyCommandArgs } from './commands/types'
 import { newCodyCommandArgs } from './commands/utils/get-commands'
 import { createInlineCompletionItemProvider } from './completions/create-inline-completion-item-provider'
 import { createInlineCompletionItemFromMultipleProviders } from './completions/create-multi-model-inline-completion-provider'
-import { getFullConfig } from './configuration'
+import { getAuthCredentials, getFullConfig } from './configuration'
 import { BaseConfigWatcher } from './configwatcher'
 import { EnterpriseContextFactory } from './context/enterprise-context-factory'
 import { exposeOpenCtxClient } from './context/openctx'
@@ -127,7 +127,7 @@ export async function start(
 
     const disposables: vscode.Disposable[] = []
 
-    const authProvider = AuthProvider.create(await getFullConfig())
+    const authProvider = AuthProvider.create()
     const configWatcher = await BaseConfigWatcher.create(authProvider, disposables)
     disposables.push(
         subscriptionDisposable(
@@ -136,13 +136,6 @@ export async function start(
             })
         )
     )
-    // The split between AuthProvider construction and initialization is
-    // awkward, but exists so we can initialize the telemetry recorder
-    // first, as it is used in AuthProvider before AuthProvider initialization
-    // is complete. It is also important that AuthProvider inintialization
-    // completes before initializeSingletons is called, because many of
-    // those assume an initialized AuthProvider
-    await authProvider.init()
 
     disposables.push(
         subscriptionDisposable(
@@ -155,6 +148,8 @@ export async function start(
         )
     )
 
+    void authProvider.authWithLastUsedCredentials()
+
     disposables.push(
         await register(context, authProvider, configWatcher, platform, isExtensionModeDevOrTest)
     )
@@ -166,7 +161,7 @@ export async function start(
 const register = async (
     context: vscode.ExtensionContext,
     authProvider: AuthProvider,
-    configWatcher: ConfigWatcher<ClientConfigurationWithAccessToken>,
+    configWatcher: ConfigWatcher<ClientConfiguration>,
     platform: PlatformContext,
     isExtensionModeDevOrTest: boolean
 ): Promise<vscode.Disposable> => {
@@ -206,9 +201,10 @@ const register = async (
     disposables.push(
         subscriptionDisposable(
             configWatcher.changes.subscribe({
-                next: config => {
+                next: async config => {
+                    const auth = await getAuthCredentials()
                     externalServicesOnDidConfigurationChange(config)
-                    localEmbeddings?.setAccessToken(config.serverEndpoint, config.accessToken)
+                    localEmbeddings?.setAuth(auth)
                 },
             })
         )
@@ -334,7 +330,7 @@ async function initializeSingletons(
                     void featureFlagProvider.refresh()
                     contextFiltersProvider.init(repoNameResolver.getRepoNamesFromWorkspaceUri)
                     void modelsService.onConfigChange(config)
-                    upstreamHealthProvider.onConfigurationChange(config)
+                    upstreamHealthProvider.onAuthChange(config)
                 },
             })
         )

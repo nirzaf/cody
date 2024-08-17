@@ -1,8 +1,8 @@
 import * as vscode from 'vscode'
 
 import type {
+    AuthCredentials,
     ClientConfiguration,
-    ClientConfigurationWithEndpoint,
     CompletionLogger,
     CompletionsClientConfig,
     SourcegraphCompletionsClient,
@@ -47,7 +47,8 @@ export interface PlatformContext {
         logger?: CompletionLogger
     ) => SourcegraphCompletionsClient
     createSentryService?: (
-        config: Pick<ClientConfigurationWithEndpoint, 'serverEndpoint'>
+        config: Pick<ClientConfiguration, 'isRunningInsideAgent' | 'agentIDE'>,
+        auth: AuthCredentials
     ) => SentryService
     createOpenTelemetryService?: (config: OpenTelemetryServiceConfig) => OpenTelemetryService
     startTokenReceiver?: typeof startTokenReceiver

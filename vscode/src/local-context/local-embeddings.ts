@@ -3,7 +3,7 @@ import * as vscode from 'vscode'
 import { URI } from 'vscode-uri'
 
 import {
-    type ClientConfigurationWithAccessToken,
+    type AuthCredentials,
     type ContextGroup,
     type ContextStatusProvider,
     type EmbeddingsModelConfig,
@@ -43,10 +43,8 @@ export async function createLocalEmbeddingsController(
     return new LocalEmbeddingsController(context, config, modelConfig, autoIndexingEnabled)
 }
 
-export type LocalEmbeddingsConfig = Pick<
-    ClientConfigurationWithAccessToken,
-    'serverEndpoint' | 'accessToken'
-> & {
+export type LocalEmbeddingsConfig = {
+    auth: AuthCredentials
     testingModelConfig: EmbeddingsModelConfig | undefined
 }
 
@@ -144,8 +142,8 @@ export class LocalEmbeddingsController
         )
 
         // Pick up the initial access token, and whether the account is dotcom.
-        this.accessToken = config.accessToken || undefined
-        this.endpointIsDotcom = isDotCom(config.serverEndpoint)
+        this.accessToken = config.auth.accessToken || undefined
+        this.endpointIsDotcom = isDotCom(config.auth.serverEndpoint)
     }
 
     public dispose(): void {
@@ -182,8 +180,8 @@ export class LocalEmbeddingsController
         })
     }
 
-    public async setAccessToken(serverEndpoint: string, token: string | null): Promise<void> {
-        const endpointIsDotcom = isDotCom(serverEndpoint)
+    public async setAuth(auth: AuthCredentials): Promise<void> {
+        const endpointIsDotcom = isDotCom(auth.serverEndpoint)
         logDebug(
             'LocalEmbeddingsController',
             'setAccessToken',
@@ -198,13 +196,13 @@ export class LocalEmbeddingsController
             }
         }
         this.endpointIsDotcom = endpointIsDotcom
-        if (token === this.accessToken) {
+        if (auth.accessToken === this.accessToken) {
             return Promise.resolve()
         }
-        this.accessToken = token || undefined
+        this.accessToken = auth.accessToken || undefined
         // TODO: Add a "drop token" for sign out
-        if (token && this.serviceStarted) {
-            await (await this.getService()).request('embeddings/set-token', token)
+        if (auth.accessToken && this.serviceStarted) {
+            await (await this.getService()).request('embeddings/set-token', auth.accessToken)
         }
     }
 

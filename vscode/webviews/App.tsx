@@ -33,7 +33,7 @@ import { type Config, ConfigProvider } from './utils/useConfig'
 
 export const App: React.FunctionComponent<{ vscodeAPI: VSCodeWrapper }> = ({ vscodeAPI }) => {
     const [config, setConfig] = useState<Config | null>(null)
-    const [view, setView] = useState<View>()
+    const [view, setView] = useState<View>(View.Chat)
     const [messageInProgress, setMessageInProgress] = useState<ChatMessage | null>(null)
 
     const [transcript, setTranscript] = useState<ChatMessage[]>([])
@@ -90,7 +90,6 @@ export const App: React.FunctionComponent<{ vscodeAPI: VSCodeWrapper }> = ({ vsc
                     }
                     case 'config':
                         setConfig(message)
-                        setView(message.authStatus.isLoggedIn ? View.Chat : View.Login)
                         updateDisplayPathEnvInfoForWebview(message.workspaceFolderUris)
                         // Get chat models
                         if (message.authStatus.isLoggedIn) {
@@ -159,11 +158,8 @@ export const App: React.FunctionComponent<{ vscodeAPI: VSCodeWrapper }> = ({ vsc
     }, [vscodeAPI])
 
     useEffect(() => {
-        if (!view) {
-            vscodeAPI.postMessage({ command: 'initialized' })
-            return
-        }
-    }, [view, vscodeAPI])
+        vscodeAPI.postMessage({ command: 'initialized' })
+    }, [vscodeAPI])
 
     const loginRedirect = useCallback(
         (method: AuthMethod) => {
@@ -212,14 +208,13 @@ export const App: React.FunctionComponent<{ vscodeAPI: VSCodeWrapper }> = ({ vsc
 
     return (
         <ComposedWrappers wrappers={wrappers}>
-            {config.authStatus.showNetworkError ? (
-                <div className={styles.outerContainer}>
-                    <ConnectionIssuesPage
-                        configuredEndpoint={config.authStatus.endpoint}
-                        vscodeAPI={vscodeAPI}
-                    />
-                </div>
-            ) : view === View.Login || !config.authStatus.isLoggedIn ? (
+            {config.authStatus.showNetworkError && (
+                <ConnectionIssuesPage
+                    configuredEndpoint={config.authStatus.endpoint}
+                    vscodeAPI={vscodeAPI}
+                />
+            )}
+            {view === View.Login ? (
                 <div className={styles.outerContainer}>
                     <LoginSimplified
                         simplifiedLoginRedirect={loginRedirect}

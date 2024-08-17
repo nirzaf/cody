@@ -2,7 +2,8 @@ import type { init as browserInit } from '@sentry/browser'
 import type { init as nodeInit } from '@sentry/node'
 
 import {
-    type ClientConfigurationWithEndpoint,
+    type AuthCredentials,
+    type ClientConfiguration,
     NetworkError,
     isAbortError,
     isAuthError,
@@ -20,18 +21,14 @@ export type SentryOptions = NonNullable<Parameters<typeof nodeInit | typeof brow
 
 export abstract class SentryService {
     constructor(
-        protected config: Pick<
-            ClientConfigurationWithEndpoint,
-            'serverEndpoint' | 'isRunningInsideAgent' | 'agentIDE'
-        >
+        protected config: Pick<ClientConfiguration, 'isRunningInsideAgent' | 'agentIDE'>,
+        private auth: AuthCredentials
     ) {
         this.prepareReconfigure()
     }
 
-    public onConfigurationChange(
-        newConfig: Pick<ClientConfigurationWithEndpoint, 'serverEndpoint'>
-    ): void {
-        this.config = newConfig
+    public onAuthChange(newAuth: AuthCredentials): void {
+        this.auth = newAuth
         this.prepareReconfigure()
     }
 
@@ -62,7 +59,7 @@ export abstract class SentryService {
                 beforeSend: (event, hint) => {
                     if (
                         isProd &&
-                        isDotCom(this.config.serverEndpoint) &&
+                        isDotCom(this.auth.serverEndpoint) &&
                         shouldErrorBeReported(hint.originalException, !!this.config.isRunningInsideAgent)
                     ) {
                         return event

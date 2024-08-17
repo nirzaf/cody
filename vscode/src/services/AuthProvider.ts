@@ -1,30 +1,30 @@
 import * as vscode from 'vscode'
 
 import {
+    type AuthCredentials,
     type AuthStatus,
     type AuthStatusProvider,
     ClientConfigSingleton,
-    type ClientConfigurationWithAccessToken,
     CodyIDE,
     DOTCOM_URL,
     SourcegraphGraphQLAPIClient,
     defaultAuthStatus,
     fromVSCodeEvent,
     graphqlClient,
+    isDotCom,
     isError,
     logError,
     networkErrorAuthStatus,
-    offlineModeAuthStatus,
     telemetryRecorder,
     unauthenticatedStatus,
 } from '@sourcegraph/cody-shared'
 
-import type { Observable } from 'observable-fns'
+import { type Observable, Subject } from 'observable-fns'
 import { AccountMenuOptions, openAccountMenu } from '../auth/account-menu'
 import { closeAuthProgressIndicator } from '../auth/auth-progress-indicator'
 import { ACCOUNT_USAGE_URL, isSourcegraphToken } from '../chat/protocol'
 import { newAuthStatus } from '../chat/utils'
-import { getFullConfig } from '../configuration'
+import { getConfiguration, getFullConfig } from '../configuration'
 import { logDebug } from '../log'
 import { syncModels } from '../models/sync'
 import { maybeStartInteractiveTutorial } from '../tutorial/helpers'
@@ -35,10 +35,6 @@ import { secretStorage } from './SecretStorageProvider'
 
 const HAS_AUTHENTICATED_BEFORE_KEY = 'has-authenticated-before'
 
-type AuthConfig = Pick<
-    ClientConfigurationWithAccessToken,
-    'serverEndpoint' | 'accessToken' | 'customHeaders'
->
 export class AuthProvider implements AuthStatusProvider, vscode.Disposable {
     private endpointHistory: string[] = []
     private client: SourcegraphGraphQLAPIClient | null = null
@@ -52,14 +48,15 @@ export class AuthProvider implements AuthStatusProvider, vscode.Disposable {
         return AuthProvider._instance
     }
 
-    public static create(config: AuthConfig): AuthProvider {
+    public static create(): AuthProvider {
         if (!AuthProvider._instance) {
-            AuthProvider._instance = new AuthProvider(config)
+            AuthProvider._instance = new AuthProvider()
         }
         return AuthProvider._instance
     }
 
-    private constructor(private config: AuthConfig) {
+    private credentials = new Subject<AuthCredentials>()
+    private constructor() {
         this.status.endpoint = 'init'
         this.loadEndpointHistory()
     }
@@ -71,10 +68,12 @@ export class AuthProvider implements AuthStatusProvider, vscode.Disposable {
         this.disposables = []
     }
 
-    // Sign into the last endpoint the user was signed into, if any
-    public async init(): Promise<void> {
-        const lastEndpoint = localStorage?.getEndpoint() || this.config.serverEndpoint
-        const token = (await secretStorage.get(lastEndpoint || '')) || this.config.accessToken
+    /**
+     * Sign into the last endpoint the user was signed into, if any.
+     */
+    public async authWithLastUsedCredentials(): Promise<void> {
+        const lastEndpoint = localStorage?.getEndpoint() ?? defaultAuthStatus.endpoint
+        const token = await secretStorage.get(lastEndpoint || '')
         logDebug(
             'AuthProvider:init:lastEndpoint',
             token?.trim() ? 'Token recovered from secretStorage' : 'No token found in secretStorage',
@@ -211,22 +210,11 @@ export class AuthProvider implements AuthStatusProvider, vscode.Disposable {
     }
 
     // Create Auth Status
-    private async makeAuthStatus(
-        config: Pick<
-            ClientConfigurationWithAccessToken,
-            'serverEndpoint' | 'accessToken' | 'customHeaders'
-        >,
-        isOfflineMode?: boolean
-    ): Promise<AuthStatus> {
-        const endpoint = config.serverEndpoint
-        const token = config.accessToken
+    private async makeAuthStatus(credentials: AuthCredentials): Promise<AuthStatus> {
+        const endpoint = credentials.serverEndpoint
+        const token = credentials.accessToken
         const isCodyWeb =
             vscode.workspace.getConfiguration().get<string>('cody.advanced.agent.ide') === CodyIDE.Web
-
-        if (isOfflineMode) {
-            const lastUser = localStorage.getLastStoredUser()
-            return { ...offlineModeAuthStatus, ...lastUser }
-        }
 
         // Cody Web can work without access token since authorization flow
         // relies on cookie authentication
@@ -240,9 +228,12 @@ export class AuthProvider implements AuthStatusProvider, vscode.Disposable {
             }
         }
         // Cache the config and GraphQL client
-        if (this.config !== config || !this.client) {
-            this.config = config
-            this.client = new SourcegraphGraphQLAPIClient(config)
+        if (this.credentials !== credentials || !this.client) {
+            this.credentials = credentials
+            this.client = new SourcegraphGraphQLAPIClient({
+                auth: credentials,
+                config: getConfiguration(),
+            })
         }
         // Version is for frontend to check if Cody is not enabled due to unsupported version when siteHasCodyEnabled is false
         const [{ enabled: siteHasCodyEnabled, version: siteVersion }, codyLLMConfiguration, userInfo] =
@@ -263,13 +254,13 @@ export class AuthProvider implements AuthStatusProvider, vscode.Disposable {
 
         const configOverwrites = isError(codyLLMConfiguration) ? undefined : codyLLMConfiguration
 
-        const isDotCom = this.client.isDotCom()
+        const isDotCom_ = isDotCom(endpoint)
 
-        if (!isDotCom) {
+        if (!isDotCom_) {
             return newAuthStatus({
                 ...userInfo,
                 endpoint,
-                isDotCom,
+                isDotCom: isDotCom_,
                 siteVersion,
                 configOverwrites,
                 authenticated: true,
@@ -309,26 +300,22 @@ export class AuthProvider implements AuthStatusProvider, vscode.Disposable {
         token,
         customHeaders,
         isExtensionStartup = false,
-        isOfflineMode = false,
     }: {
         endpoint: string
         token: string | null
         customHeaders?: Record<string, string> | null
         isExtensionStartup?: boolean
-        isOfflineMode?: boolean
     }): Promise<AuthStatus> {
-        const config = {
+        const credentials: AuthCredentials = {
             serverEndpoint: formatURL(endpoint) ?? '',
             accessToken: token,
-            customHeaders: customHeaders || this.config.customHeaders,
+            customHeaders: customHeaders || this.credentials.customHeaders,
         }
 
         try {
-            const authStatus = await this.makeAuthStatus(config, isOfflineMode)
+            const authStatus = await this.makeAuthStatus(credentials)
 
-            if (!isOfflineMode) {
-                await this.storeAuthInfo(config.serverEndpoint, config.accessToken)
-            }
+            await this.storeAuthInfo(credentials)
 
             await vscode.commands.executeCommand('setContext', 'cody.activated', authStatus.isLoggedIn)
 
@@ -356,11 +343,11 @@ export class AuthProvider implements AuthStatusProvider, vscode.Disposable {
     public async reloadAuthStatus(): Promise<AuthStatus> {
         await vscode.commands.executeCommand('setContext', 'cody.activated', false)
 
-        this.config = await getFullConfig()
+        this.credentials = await getFullConfig()
         return await this.auth({
-            endpoint: this.config.serverEndpoint,
-            token: this.config.accessToken,
-            customHeaders: this.config.customHeaders,
+            endpoint: this.credentials.serverEndpoint,
+            token: this.credentials.accessToken,
+            customHeaders: this.credentials.customHeaders,
         })
     }
 
@@ -381,7 +368,7 @@ export class AuthProvider implements AuthStatusProvider, vscode.Disposable {
         try {
             // We update the graphqlClient and ModelsService first
             // because many listeners rely on these
-            graphqlClient.setConfig(await getFullConfig())
+            graphqlClient.setConfig({ auth: this.credentials, config: getConfiguration() })
             await ClientConfigSingleton.getInstance().setAuthStatus(authStatus)
             await syncModels(authStatus)
         } catch (error) {
@@ -457,15 +444,14 @@ export class AuthProvider implements AuthStatusProvider, vscode.Disposable {
 
     // Store endpoint in local storage, token in secret storage, and update endpoint history.
     private async storeAuthInfo(
-        endpoint: string | null | undefined,
-        token: string | null | undefined
+        credentials: Pick<AuthCredentials, 'serverEndpoint' | 'accessToken'>
     ): Promise<void> {
-        if (!endpoint) {
+        if (!credentials.serverEndpoint) {
             return
         }
-        await localStorage.saveEndpoint(endpoint)
-        if (token) {
-            await secretStorage.storeToken(endpoint, token)
+        await localStorage.saveEndpoint(credentials.serverEndpoint)
+        if (credentials.accessToken) {
+            await secretStorage.storeToken(credentials.serverEndpoint, credentials.accessToken)
         }
         this.loadEndpointHistory()
     }

@@ -1,7 +1,7 @@
 import {
+    type AuthCredentials,
     type AuthStatus,
     type ClientConfiguration,
-    type ClientConfigurationWithAccessToken,
     type CodeCompletionsClient,
     type CodyLLMSiteConfiguration,
     type GraphQLAPIClientConfig,
@@ -17,12 +17,14 @@ import { createProviderConfig } from './create-provider'
 
 const getVSCodeConfigurationWithAccessToken = (
     config: Partial<ClientConfiguration> = {}
-): ClientConfigurationWithAccessToken => ({
+): ClientConfiguration => ({
     ...DEFAULT_VSCODE_SETTINGS,
     ...config,
-    serverEndpoint: 'https://example.com',
-    accessToken: 'foobar',
 })
+
+const DUMMY_AUTH: Pick<AuthCredentials, 'accessToken'> = {
+    accessToken: 'foobar',
+}
 
 const dummyCodeCompletionsClient: CodeCompletionsClient = {
     // biome-ignore lint/correctness/useYield: keep TS happy in tests.
@@ -45,6 +47,7 @@ describe('createProviderConfig', () => {
                     autocompleteAdvancedProvider:
                         'nasa-ai' as ClientConfiguration['autocompleteAdvancedProvider'],
                 }),
+                DUMMY_AUTH,
                 dummyCodeCompletionsClient,
                 dummyAuthStatus
             )
@@ -66,6 +69,7 @@ describe('createProviderConfig', () => {
                     autocompleteAdvancedProvider:
                         null as ClientConfiguration['autocompleteAdvancedProvider'],
                 }),
+                DUMMY_AUTH,
                 dummyCodeCompletionsClient,
                 dummyAuthStatus
             )
@@ -79,6 +83,7 @@ describe('createProviderConfig', () => {
                     autocompleteAdvancedProvider: 'fireworks',
                     autocompleteAdvancedModel: 'starcoder-7b',
                 }),
+                DUMMY_AUTH,
                 dummyCodeCompletionsClient,
                 dummyAuthStatus
             )
@@ -89,6 +94,7 @@ describe('createProviderConfig', () => {
         it('returns "fireworks" provider config if specified in settings and default model', async () => {
             const provider = await createProviderConfig(
                 getVSCodeConfigurationWithAccessToken({ autocompleteAdvancedProvider: 'fireworks' }),
+                DUMMY_AUTH,
                 dummyCodeCompletionsClient,
                 dummyAuthStatus
             )
@@ -102,6 +108,7 @@ describe('createProviderConfig', () => {
                     autocompleteAdvancedProvider: 'experimental-openaicompatible',
                     autocompleteAdvancedModel: 'starchat-16b-beta',
                 }),
+                DUMMY_AUTH,
                 dummyCodeCompletionsClient,
                 dummyAuthStatus
             )
@@ -114,6 +121,7 @@ describe('createProviderConfig', () => {
                 getVSCodeConfigurationWithAccessToken({
                     autocompleteAdvancedProvider: 'experimental-openaicompatible',
                 }),
+                DUMMY_AUTH,
                 dummyCodeCompletionsClient,
                 dummyAuthStatus
             )
@@ -129,6 +137,7 @@ describe('createProviderConfig', () => {
                     autocompleteAdvancedProvider: 'unstable-openai',
                     autocompleteAdvancedModel: 'hello-world',
                 }),
+                DUMMY_AUTH,
                 dummyCodeCompletionsClient,
                 dummyAuthStatus
             )
@@ -141,6 +150,7 @@ describe('createProviderConfig', () => {
                 getVSCodeConfigurationWithAccessToken({
                     autocompleteAdvancedProvider: 'anthropic',
                 }),
+                DUMMY_AUTH,
                 dummyCodeCompletionsClient,
                 dummyAuthStatus
             )
@@ -153,6 +163,7 @@ describe('createProviderConfig', () => {
                 getVSCodeConfigurationWithAccessToken({
                     autocompleteAdvancedProvider: 'unstable-openai',
                 }),
+                DUMMY_AUTH,
                 dummyCodeCompletionsClient,
                 {
                     ...dummyAuthStatus,
@@ -274,6 +285,7 @@ describe('createProviderConfig', () => {
                 )}`, async () => {
                     const provider = await createProviderConfig(
                         getVSCodeConfigurationWithAccessToken(),
+                        DUMMY_AUTH,
                         dummyCodeCompletionsClient,
                         { ...dummyAuthStatus, configOverwrites: codyLLMConfig }
                     )
@@ -291,6 +303,7 @@ describe('createProviderConfig', () => {
     it('returns anthropic provider config if no completions provider specified in VSCode settings or site config', async () => {
         const provider = await createProviderConfig(
             getVSCodeConfigurationWithAccessToken(),
+            DUMMY_AUTH,
             dummyCodeCompletionsClient,
             dummyAuthStatus
         )

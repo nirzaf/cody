@@ -5,7 +5,8 @@ import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node'
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions'
 
 import {
-    type ClientConfigurationWithAccessToken,
+    type AuthCredentials,
+    type ClientConfiguration,
     FeatureFlag,
     featureFlagProvider,
 } from '@sourcegraph/cody-shared'
@@ -16,10 +17,10 @@ import { version } from '../../version'
 import { CodyTraceExporter } from './CodyTraceExport'
 import { ConsoleBatchSpanExporter } from './console-batch-span-exporter'
 
-export type OpenTelemetryServiceConfig = Pick<
-    ClientConfigurationWithAccessToken,
-    'serverEndpoint' | 'experimentalTracing' | 'debugVerbose' | 'accessToken'
->
+export interface OpenTelemetryServiceConfig {
+    auth: Omit<AuthCredentials, 'customHeaders'>
+    config: Pick<ClientConfiguration, 'experimentalTracing' | 'debugVerbose'>
+}
 
 export class OpenTelemetryService {
     private tracerProvider?: NodeTracerProvider
@@ -42,16 +43,16 @@ export class OpenTelemetryService {
 
     private async reconfigure(): Promise<void> {
         this.isTracingEnabled =
-            this.config.experimentalTracing ||
+            this.config.config.experimentalTracing ||
             (await featureFlagProvider.evaluateFeatureFlag(FeatureFlag.CodyAutocompleteTracing))
 
-        const traceUrl = new URL('/-/debug/otlp/v1/traces', this.config.serverEndpoint).toString()
+        const traceUrl = new URL('/-/debug/otlp/v1/traces', this.config.auth.serverEndpoint).toString()
         if (this.lastTraceUrl === traceUrl) {
             return
         }
         this.lastTraceUrl = traceUrl
 
-        const logLevel = this.config.debugVerbose ? DiagLogLevel.INFO : DiagLogLevel.ERROR
+        const logLevel = this.config.config.debugVerbose ? DiagLogLevel.INFO : DiagLogLevel.ERROR
         diag.setLogger(new DiagConsoleLogger(), logLevel)
 
         await this.reset()
@@ -76,13 +77,13 @@ export class OpenTelemetryService {
                 new CodyTraceExporter({
                     traceUrl,
                     isTracingEnabled: this.isTracingEnabled,
-                    accessToken: this.config.accessToken,
+                    accessToken: this.config.auth.accessToken,
                 })
             )
         )
 
         // Add the console exporter used in development for verbose logging and debugging.
-        if (process.env.NODE_ENV === 'development' || this.config.debugVerbose) {
+        if (process.env.NODE_ENV === 'development' || this.config.config.debugVerbose) {
             this.tracerProvider.addSpanProcessor(new BatchSpanProcessor(new ConsoleBatchSpanExporter()))
         }
 

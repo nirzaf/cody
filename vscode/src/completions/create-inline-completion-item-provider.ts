@@ -1,5 +1,6 @@
 import {
-    type ClientConfigurationWithAccessToken,
+    type AuthCredentials,
+    type ClientConfiguration,
     type CodeCompletionsClient,
     featureFlagProvider,
     isDotCom,
@@ -17,7 +18,8 @@ import { createProviderConfig } from './providers/create-provider'
 import { registerAutocompleteTraceView } from './tracer/traceView'
 
 export interface InlineCompletionItemProviderArgs {
-    config: ClientConfigurationWithAccessToken
+    auth: AuthCredentials
+    config: ClientConfiguration
     client: CodeCompletionsClient
     statusBar: CodyStatusBar
     authProvider: AuthProvider
@@ -42,6 +44,7 @@ class NoopCompletionItemProvider implements vscode.InlineCompletionItemProvider 
 
 export async function createInlineCompletionItemProvider({
     config,
+    auth,
     client,
     statusBar,
     authProvider,
@@ -69,7 +72,7 @@ export async function createInlineCompletionItemProvider({
     const disposables: vscode.Disposable[] = []
 
     const [providerConfig] = await Promise.all([
-        createProviderConfig(config, client, authStatus),
+        createProviderConfig(config, auth, client, authStatus),
         completionProviderConfig.init(config, featureFlagProvider),
     ])
 

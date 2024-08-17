@@ -10,7 +10,7 @@ import type {
 } from 'vscode'
 
 import {
-    type Configuration,
+    type ConfigurationWithEndpoint,
     type FeatureFlag,
     FeatureFlagProvider,
     OLLAMA_DEFAULT_URL,
@@ -890,7 +890,8 @@ export class MockFeatureFlagProvider extends FeatureFlagProvider {
 
 export const emptyMockFeatureFlagProvider = new MockFeatureFlagProvider(new Set<FeatureFlag>())
 
-export const DEFAULT_VSCODE_SETTINGS = {
+export const DEFAULT_VSCODE_SETTINGS: ConfigurationWithEndpoint = {
+    serverEndpoint: 'https://example.com',
     proxy: undefined,
     codebase: '',
     customHeaders: {},
@@ -935,4 +936,4 @@ export const DEFAULT_VSCODE_SETTINGS = {
     autocompleteExperimentalHotStreakAndSmartThrottle: false,
     testingModelConfig: undefined,
     experimentalGuardrailsTimeoutSeconds: undefined,
-} satisfies Configuration
+}

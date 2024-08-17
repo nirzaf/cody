@@ -1,6 +1,7 @@
 import {
+    type AuthCredentials,
     type AuthStatus,
-    type ClientConfigurationWithAccessToken,
+    type ClientConfiguration,
     type CodeCompletionsClient,
     FeatureFlag,
     type Model,
@@ -38,7 +39,8 @@ export async function createProviderConfigFromVSCodeConfig(
     authStatus: AuthStatus,
     model: string | undefined,
     provider: string,
-    config: ClientConfigurationWithAccessToken
+    config: ClientConfiguration,
+    auth: Pick<AuthCredentials, 'accessToken'>
 ): Promise<ProviderConfig | null> {
     switch (provider) {
         case 'azure-openai':
@@ -54,6 +56,7 @@ export async function createProviderConfigFromVSCodeConfig(
                 model: config.autocompleteAdvancedModel ?? model ?? null,
                 timeouts: config.autocompleteTimeouts,
                 authStatus,
+                auth,
                 config,
                 anonymousUserID,
             })
@@ -76,7 +79,7 @@ export async function createProviderConfigFromVSCodeConfig(
                 model: config.autocompleteAdvancedModel ?? model ?? null,
                 timeouts: config.autocompleteTimeouts,
                 authStatus,
-                config,
+                auth,
             })
         }
         case 'experimental-ollama':
@@ -93,7 +96,8 @@ export async function createProviderConfigFromVSCodeConfig(
 }
 
 export async function createProviderConfig(
-    config: ClientConfigurationWithAccessToken,
+    config: ClientConfiguration,
+    auth: Pick<AuthCredentials, 'accessToken'>,
     client: CodeCompletionsClient,
     authStatus: AuthStatus
 ): Promise<ProviderConfig | null> {
@@ -107,7 +111,7 @@ export async function createProviderConfig(
     )
     if (providerAndModelFromVSCodeConfig) {
         const { provider, model } = providerAndModelFromVSCodeConfig
-        return createProviderConfigFromVSCodeConfig(client, authStatus, model, provider, config)
+        return createProviderConfigFromVSCodeConfig(client, authStatus, model, provider, config, auth)
     }
     const info = getAutocompleteModelInfo(authStatus)
     if (!info) {
@@ -143,6 +147,7 @@ export async function createProviderConfig(
                 timeouts: config.autocompleteTimeouts,
                 model: modelId ?? null,
                 authStatus,
+                auth,
                 config,
                 anonymousUserID,
             })
@@ -155,7 +160,7 @@ export async function createProviderConfig(
                 timeouts: config.autocompleteTimeouts,
                 model: modelId ?? null,
                 authStatus,
-                config,
+                auth,
             })
         case 'openaicompatible':
             if (model) {
@@ -164,7 +169,7 @@ export async function createProviderConfig(
                     timeouts: config.autocompleteTimeouts,
                     model: model,
                     authStatus,
-                    config,
+                    auth,
                 })
             }
             logError(

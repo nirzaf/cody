@@ -27,7 +27,7 @@ import { useWebAgentClient } from './CodyWebPanelProvider'
 // Include global Cody Web styles to the styles bundle
 import '../global-styles/styles.css'
 import { CodyPanel } from 'cody-ai/webviews/CodyPanel'
-import type { View } from 'cody-ai/webviews/tabs'
+import { View } from 'cody-ai/webviews/tabs'
 import { ComposedWrappers, type Wrapper } from 'cody-ai/webviews/utils/composeWrappers'
 import type { Config } from 'cody-ai/webviews/utils/useConfig'
 import styles from './CodyWebPanel.module.css'
@@ -61,7 +61,7 @@ export const CodyWebPanel: FC<CodyWebPanelProps> = props => {
     const [transcript, setTranscript] = useState<ChatMessage[]>([])
     const [chatModels, setChatModels] = useState<Model[]>()
     const [config, setConfig] = useState<Config | null>(null)
-    const [view, setView] = useState<View | undefined>()
+    const [view, setView] = useState<View>(View.Chat)
     const [userHistory, setUserHistory] = useState<SerializedChatTranscript[]>()
 
     useLayoutEffect(() => {

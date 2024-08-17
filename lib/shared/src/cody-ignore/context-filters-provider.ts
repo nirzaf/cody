@@ -245,7 +245,7 @@ export class ContextFiltersProvider implements vscode.Disposable {
 
     private hasAllowEverythingFilters(): boolean {
         return (
-            graphqlClient.isDotCom() ||
+            /* isDotCom || TODO!(sqs) */
             this.lastContextFiltersResponse === INCLUDE_EVERYTHING_CONTEXT_FILTERS
         )
     }

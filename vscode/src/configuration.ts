@@ -1,7 +1,8 @@
 import * as vscode from 'vscode'
 
 import {
-    type ClientConfigurationWithAccessToken,
+    type AuthCredentials,
+    type ClientConfiguration,
     type CodyIDE,
     type ConfigurationUseContext,
     DOTCOM_URL,
@@ -219,20 +220,26 @@ function sanitizeCodebase(codebase: string | undefined): string {
     return codebase.replace(protocolRegexp, '').trim().replace(trailingSlashRegexp, '')
 }
 
-export function getConfigWithEndpoint(): Omit<ClientConfigurationWithAccessToken, 'accessToken'> {
-    const config = getConfiguration()
+export function getAuthCredentialsEndpoint(): Pick<AuthCredentials, 'serverEndpoint'> {
     const isTesting = process.env.CODY_TESTING === 'true'
     const serverEndpoint =
         localStorage?.getEndpoint() || (isTesting ? 'http://localhost:49300/' : DOTCOM_URL.href)
-    return { ...config, serverEndpoint }
+    return { serverEndpoint }
 }
 
-export const getFullConfig = async (): Promise<ClientConfigurationWithAccessToken> => {
+export async function getAuthCredentials(): Promise<AuthCredentials> {
     const accessToken =
         vscode.workspace.getConfiguration().get<string>('cody.accessToken') ||
         (await getAccessToken()) ||
         null
-    return { ...getConfigWithEndpoint(), accessToken }
+    const { serverEndpoint } = getAuthCredentialsEndpoint()
+    const config = getConfiguration()
+    return { serverEndpoint, accessToken, customHeaders: config.customHeaders }
+}
+
+// TODO!(sqs): rename to getConfiguration
+export function getFullConfig(): ClientConfiguration {
+    return getConfiguration()
 }
 
 function checkValidEnumValues(configName: string, value: string | null): void {

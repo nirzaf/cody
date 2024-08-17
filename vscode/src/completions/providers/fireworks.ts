@@ -1,9 +1,9 @@
 import {
+    type AuthCredentials,
     type AuthStatus,
     type AutocompleteContextSnippet,
     type AutocompleteTimeouts,
     type ClientConfiguration,
-    type ClientConfigurationWithAccessToken,
     type CodeCompletionsClient,
     type CodeCompletionsParams,
     type CompletionResponse,
@@ -62,10 +62,8 @@ export interface FireworksOptions {
     client: CodeCompletionsClient
     anonymousUserID?: string
     timeouts: AutocompleteTimeouts
-    config: Pick<
-        ClientConfigurationWithAccessToken,
-        'accessToken' | 'autocompleteExperimentalFireworksOptions'
-    >
+    auth: Pick<AuthCredentials, 'accessToken'>
+    config: Pick<ClientConfiguration, 'autocompleteExperimentalFireworksOptions'>
     authStatus: Pick<
         AuthStatus,
         'userCanUpgrade' | 'isDotCom' | 'endpoint' | 'isFireworksTracingEnabled'
@@ -214,6 +212,7 @@ class FireworksProvider extends Provider {
             maxContextTokens,
             client,
             timeouts,
+            auth,
             config,
             authStatus,
             anonymousUserID,
@@ -237,13 +236,13 @@ class FireworksProvider extends Provider {
 
         const isNode = typeof process !== 'undefined'
         this.fastPathAccessToken =
-            config.accessToken &&
+            auth.accessToken &&
             // Require the upstream to be dotcom
             (this.authStatus.isDotCom || this.isLocalInstance) &&
             process.env.CODY_DISABLE_FASTPATH !== 'true' && // Used for testing
             // The fast path client only supports Node.js style response streams
             isNode
-                ? dotcomTokenToGatewayToken(config.accessToken)
+                ? dotcomTokenToGatewayToken(auth.accessToken)
                 : undefined
 
         if (
