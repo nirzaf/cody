@@ -92,6 +92,7 @@ export function preAuthenticate(ctx: Pick<UIXContextFnContext, 'workspaceDir'>) 
                 token: MITM_AUTH_TOKEN_PLACEHOLDER,
             })
         )
+        // TODO(sqs): cody.experimental.localTokenPath was removed
         await workspace.modifySettings(
             s => ({ ...s, 'cody.experimental.localTokenPath': secretFilePath }),
             ctx
