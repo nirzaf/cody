@@ -50,7 +50,7 @@ export async function createProviderConfigFromVSCodeConfig(
             })
         }
         case 'fireworks': {
-            const { anonymousUserID } = await localStorage.anonymousUserID()
+            const { anonymousUserID } = localStorage.anonymousUserID()
             return createFireworksProviderConfig({
                 client,
                 model: config.autocompleteAdvancedModel ?? model ?? null,
@@ -141,7 +141,7 @@ export async function createProviderConfig(
             })
 
         case 'fireworks': {
-            const { anonymousUserID } = await localStorage.anonymousUserID()
+            const { anonymousUserID } = localStorage.anonymousUserID()
             return createFireworksProviderConfig({
                 client,
                 timeouts: config.autocompleteTimeouts,
