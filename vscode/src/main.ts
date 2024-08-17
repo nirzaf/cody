@@ -330,7 +330,6 @@ async function initializeSingletons(
         subscriptionDisposable(
             configWatcher.changes.subscribe({
                 next: config => {
-                    void localStorage.setConfig(config)
                     graphqlClient.setConfig(config)
                     void featureFlagProvider.refresh()
                     contextFiltersProvider.init(repoNameResolver.getRepoNamesFromWorkspaceUri)

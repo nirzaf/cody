@@ -1,12 +1,7 @@
 import * as uuid from 'uuid'
 import type { Memento } from 'vscode'
 
-import type {
-    AuthStatus,
-    ChatHistory,
-    ConfigurationWithAccessToken,
-    UserLocalHistory,
-} from '@sourcegraph/cody-shared'
+import type { AuthStatus, ChatHistory, UserLocalHistory } from '@sourcegraph/cody-shared'
 
 import { isSourcegraphToken } from '../chat/protocol'
 
@@ -195,14 +190,6 @@ class LocalStorage {
             }
         }
         return { anonymousUserID: id, created }
-    }
-
-    public async setConfig(config: ConfigurationWithAccessToken): Promise<void> {
-        return this.set(this.KEY_CONFIG, config)
-    }
-
-    public getConfig(): ConfigurationWithAccessToken | null {
-        return this.get(this.KEY_CONFIG)
     }
 
     public setLastUsedChatModality(modality: 'sidebar' | 'editor'): void {
