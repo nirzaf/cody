@@ -1,6 +1,7 @@
 import {
     type AuthStatus,
     CodyIDE,
+    type ConfigWatcher,
     type Configuration,
     FeatureFlag,
     GIT_OPENCTX_PROVIDER_URI,
@@ -17,7 +18,6 @@ import * as vscode from 'vscode'
 import type { ClientConfiguration, ImportedProviderConfiguration } from '@openctx/client'
 import type { createController } from '@openctx/vscode-lib'
 import { Observable } from 'observable-fns'
-import type { ConfigWatcher } from '../configwatcher'
 import { logDebug, outputChannel } from '../log'
 import type { AuthProvider } from '../services/AuthProvider'
 import { gitMentionsProvider } from './openctx/git'

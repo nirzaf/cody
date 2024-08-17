@@ -4,6 +4,7 @@ import {
     type ChatClient,
     ClientConfigSingleton,
     type CodeCompletionsClient,
+    type ConfigWatcher,
     type Configuration,
     type ConfigurationWithAccessToken,
     type ConfigurationWithEndpoint,
@@ -49,7 +50,7 @@ import { newCodyCommandArgs } from './commands/utils/get-commands'
 import { createInlineCompletionItemProvider } from './completions/create-inline-completion-item-provider'
 import { createInlineCompletionItemFromMultipleProviders } from './completions/create-multi-model-inline-completion-provider'
 import { getFullConfig } from './configuration'
-import { BaseConfigWatcher, type ConfigWatcher } from './configwatcher'
+import { BaseConfigWatcher } from './configwatcher'
 import { EnterpriseContextFactory } from './context/enterprise-context-factory'
 import { exposeOpenCtxClient } from './context/openctx'
 import { EditManager } from './edit/manager'

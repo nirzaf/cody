@@ -3,6 +3,7 @@ import type * as vscode from 'vscode'
 import {
     ChatClient,
     type CodeCompletionsClient,
+    type ConfigWatcher,
     type ConfigurationWithAccessToken,
     type Guardrails,
     type GuardrailsClientConfig,
@@ -15,7 +16,6 @@ import {
 
 import { ContextAPIClient } from './chat/context/contextAPIClient'
 import { createClient as createCodeCompletionsClient } from './completions/client'
-import type { ConfigWatcher } from './configwatcher'
 import type { PlatformContext } from './extension.common'
 import type { LocalEmbeddingsConfig, LocalEmbeddingsController } from './local-context/local-embeddings'
 import type { SymfRunner } from './local-context/symf'
