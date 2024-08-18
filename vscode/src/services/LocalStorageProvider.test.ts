@@ -36,7 +36,6 @@ const DUMMY_AUTH_STATUS: AuthStatus = {
     endpoint: '',
     isDotCom: true,
     isLoggedIn: true,
-    isFireworksTracingEnabled: false,
     showInvalidAccessTokenError: false,
     authenticated: true,
     hasVerifiedEmail: true,

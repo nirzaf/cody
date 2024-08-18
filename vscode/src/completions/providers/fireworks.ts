@@ -64,10 +64,7 @@ export interface FireworksOptions {
     timeouts: AutocompleteTimeouts
     auth: Pick<AuthCredentials, 'accessToken'>
     config: Pick<ClientConfiguration, 'autocompleteExperimentalFireworksOptions'>
-    authStatus: Pick<
-        AuthStatus,
-        'userCanUpgrade' | 'isDotCom' | 'endpoint' | 'isFireworksTracingEnabled'
-    >
+    authStatus: Pick<AuthStatus, 'userCanUpgrade' | 'isDotCom' | 'endpoint'>
 }
 
 const PROVIDER_IDENTIFIER = 'fireworks'
@@ -193,10 +190,7 @@ class FireworksProvider extends Provider {
     private client: CodeCompletionsClient
     private timeouts?: AutocompleteTimeouts
     private fastPathAccessToken?: string
-    private authStatus: Pick<
-        AuthStatus,
-        'userCanUpgrade' | 'isDotCom' | 'endpoint' | 'isFireworksTracingEnabled'
-    >
+    private authStatus: Pick<AuthStatus, 'userCanUpgrade' | 'isDotCom' | 'endpoint'>
     private isLocalInstance: boolean
     private fireworksConfig?: ClientConfiguration['autocompleteExperimentalFireworksOptions']
     private promptExtractor: FIMModelSpecificPromptExtractor
@@ -493,9 +487,7 @@ class FireworksProvider extends Provider {
     }
 
     private getCustomHeaders = (): Record<string, string> => {
-        // Enabled Fireworks tracing for Sourcegraph teammates.
-        // https://readme.fireworks.ai/docs/enabling-tracing
-        return this.authStatus.isFireworksTracingEnabled ? { 'X-Fireworks-Genie': 'true' } : {}
+        return {}
     }
 
     private createDefaultClient(

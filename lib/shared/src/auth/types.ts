@@ -9,11 +9,6 @@ export interface AuthStatus {
     endpoint: string
     isDotCom: boolean
     isLoggedIn: boolean
-    /**
-     * Used to enable Fireworks tracing for Sourcegraph teammates on DotCom.
-     * https://readme.fireworks.ai/docs/enabling-tracing
-     */
-    isFireworksTracingEnabled: boolean
     showInvalidAccessTokenError: boolean
     authenticated: boolean
     hasVerifiedEmail: boolean
@@ -46,7 +41,6 @@ export const defaultAuthStatus: AuthStatus = {
     endpoint: '',
     isDotCom: true,
     isLoggedIn: false,
-    isFireworksTracingEnabled: false,
     showInvalidAccessTokenError: false,
     authenticated: false,
     hasVerifiedEmail: false,
@@ -65,7 +59,6 @@ export const unauthenticatedStatus: AuthStatus = {
     endpoint: '',
     isDotCom: true,
     isLoggedIn: false,
-    isFireworksTracingEnabled: false,
     showInvalidAccessTokenError: true,
     authenticated: false,
     hasVerifiedEmail: false,
@@ -85,7 +78,6 @@ export const networkErrorAuthStatus: Omit<AuthStatus, 'endpoint'> = {
     showInvalidAccessTokenError: false,
     authenticated: false,
     isLoggedIn: false,
-    isFireworksTracingEnabled: false,
     hasVerifiedEmail: false,
     showNetworkError: true,
     requiresVerifiedEmail: false,
@@ -104,7 +96,6 @@ export const offlineModeAuthStatus: AuthStatus = {
     isDotCom: true,
     isLoggedIn: true,
     isOfflineMode: true,
-    isFireworksTracingEnabled: false,
     showInvalidAccessTokenError: false,
     authenticated: true,
     hasVerifiedEmail: true,

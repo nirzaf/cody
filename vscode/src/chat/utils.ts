@@ -1,19 +1,16 @@
 import semver from 'semver'
 
 import { type AuthStatus, offlineModeAuthStatus, unauthenticatedStatus } from '@sourcegraph/cody-shared'
-import type { CurrentUserInfo } from '@sourcegraph/cody-shared/src/sourcegraph-api/graphql/client'
 
 export type NewAuthStatusOptions = Omit<
     AuthStatus,
     | 'isLoggedIn'
-    | 'isFireworksTracingEnabled'
     | 'codyApiVersion'
     | 'showInvalidAccessToken'
     | 'showInvalidAccessTokenError'
     | 'requiresVerifiedEmail'
     | 'primaryEmail'
 > & {
-    userOrganizations?: CurrentUserInfo['organizations']
     primaryEmail?:
         | string
         | {
@@ -31,7 +28,6 @@ export function newAuthStatus(options: NewAuthStatusOptions): AuthStatus {
         authenticated,
         isDotCom,
         siteVersion,
-        userOrganizations,
     } = options
 
     if (isOfflineMode) {
@@ -56,8 +52,6 @@ export function newAuthStatus(options: NewAuthStatusOptions): AuthStatus {
         hasVerifiedEmail,
         isLoggedIn: siteHasCodyEnabled && authenticated && isAllowed,
         codyApiVersion: inferCodyApiVersion(siteVersion, isDotCom),
-        isFireworksTracingEnabled:
-            isDotCom && !!userOrganizations?.nodes.find(org => org.name === 'sourcegraph'),
     }
 }
 
