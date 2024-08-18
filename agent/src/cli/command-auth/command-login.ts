@@ -125,6 +125,10 @@ export async function loginAction(
         spinner.fail('Failed to get username from GraphQL. Error: ' + String(userInfo))
         return undefined
     }
+    if (userInfo === null) {
+        spinner.fail('No user info returned from GraphQL.')
+        return undefined
+    }
     const oldSettings = loadUserSettings()
     const id = uniqueID(userInfo.username, oldSettings)
     const account: Account = { id, username: userInfo.username, serverEndpoint }

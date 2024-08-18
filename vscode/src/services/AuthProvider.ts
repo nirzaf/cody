@@ -275,7 +275,10 @@ export class AuthProvider implements AuthStatusProvider, vscode.Disposable {
         const proStatus = await this.client.getCurrentUserCodySubscription()
         // Pro user without the pending status is the valid pro users
         const isActiveProUser =
-            'plan' in proStatus && proStatus.plan === 'PRO' && proStatus.status !== 'PENDING'
+            proStatus !== null &&
+            'plan' in proStatus &&
+            proStatus.plan === 'PRO' &&
+            proStatus.status !== 'PENDING'
 
         return newAuthStatus({
             ...userInfo,
