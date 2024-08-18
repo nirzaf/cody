@@ -341,7 +341,7 @@ export function addMessageListenersForExtensionAPI(
     }
 }
 
-const LOG_RPC_MESSAGES = true
+const LOG_RPC_MESSAGES = false
 
 function logRPCMessage(msg: string, ...args: any[]) {
     if (LOG_RPC_MESSAGES) {
