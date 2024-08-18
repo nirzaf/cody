@@ -97,7 +97,7 @@ export const getInput = async (
               : SELECTION_RANGE_ITEM
 
     const authStatus = authProvider.getAuthStatus()
-    const isCodyPro = !authStatus.userCanUpgrade
+    const isCodyPro = true // TODO!(sqs)
     const modelOptions = modelsService.getModels(ModelUsage.Edit)
     const modelItems = getModelOptionItems(modelOptions, isCodyPro)
     const showModelSelector = modelOptions.length > 1 && authStatus.isDotCom

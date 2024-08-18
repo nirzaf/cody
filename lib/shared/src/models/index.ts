@@ -1,4 +1,4 @@
-import { type AuthStatus, isCodyProUser, isEnterpriseUser } from '../auth/types'
+import { type AuthStatus, isEnterpriseUser } from '../auth/types'
 import { type ClientConfiguration, CodyIDE } from '../configuration'
 import { fetchLocalOllamaModels } from '../llm-providers/ollama/utils'
 import { logDebug, logError } from '../logger'
@@ -513,14 +513,10 @@ export class ModelsService {
             return true
         }
 
-        // A Cody Pro user can use any Free or Pro model, but not Enterprise.
+        // A Cody dotcom user can use any Free or Pro model, but not Enterprise.
         // (But in reality, Sourcegraph.com wouldn't serve any Enterprise-only models to
         // Cody Pro users anyways.)
-        if (isCodyProUser(status)) {
-            return tier !== 'enterprise'
-        }
-
-        return tier === 'free'
+        return tier !== 'enterprise'
     }
 
     // does an approximate match on the model id, seeing if there are any models in the

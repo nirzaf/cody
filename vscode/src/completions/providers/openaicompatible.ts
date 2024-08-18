@@ -47,7 +47,7 @@ interface OpenAICompatibleOptions {
     client: CodeCompletionsClient
     timeouts: AutocompleteTimeouts
     auth: Pick<AuthCredentials, 'accessToken'>
-    authStatus: Pick<AuthStatus, 'userCanUpgrade' | 'isDotCom' | 'endpoint'>
+    authStatus: Pick<AuthStatus, 'isDotCom' | 'endpoint'>
 }
 
 const PROVIDER_IDENTIFIER = 'openaicompatible'

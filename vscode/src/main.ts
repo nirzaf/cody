@@ -543,23 +543,6 @@ function registerUpgradeHandlers(
                 }
             },
         }),
-
-        // Check if user has just moved back from a browser window to upgrade cody pro
-        vscode.window.onDidChangeWindowState(async ws => {
-            const authStatus = authProvider.getAuthStatus()
-            if (ws.focused && authStatus.isDotCom && authStatus.isLoggedIn) {
-                const res = await graphqlClient.getCurrentUserCodyProEnabled()
-                if (res instanceof Error) {
-                    logError('onDidChangeWindowState', 'getCurrentUserCodyProEnabled', res)
-                    return
-                }
-                // Re-auth if user's cody pro status has changed
-                const isCurrentCodyProUser = !authStatus.userCanUpgrade
-                if (res && res.codyProEnabled !== isCurrentCodyProUser) {
-                    authProvider.reloadAuthStatus()
-                }
-            }
-        }),
         new CodyProExpirationNotifications(
             graphqlClient,
             authProvider,

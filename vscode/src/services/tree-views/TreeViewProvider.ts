@@ -75,14 +75,6 @@ export class TreeViewProvider implements vscode.TreeDataProvider<vscode.TreeItem
                 continue
             }
 
-            if (item.requireUpgradeAvailable && !(this.authStatus?.userCanUpgrade ?? false)) {
-                continue
-            }
-
-            if (item.requirePaid && this.authStatus?.userCanUpgrade === true) {
-                continue
-            }
-
             const treeItem = new vscode.TreeItem({ label: item.title })
             treeItem.id = item.id
             treeItem.iconPath = new vscode.ThemeIcon(item.icon)

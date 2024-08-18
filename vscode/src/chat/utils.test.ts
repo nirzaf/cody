@@ -11,7 +11,6 @@ describe('validateAuthStatus', () => {
         siteHasCodyEnabled: true,
         authenticated: true,
         endpoint: '',
-        userCanUpgrade: false,
         username: 'cody',
         primaryEmail: 'me@domain.test',
         displayName: 'Test Name',

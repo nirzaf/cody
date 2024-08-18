@@ -265,19 +265,10 @@ export class AuthProvider implements AuthStatusProvider, vscode.Disposable {
                 configOverwrites,
                 authenticated: true,
                 siteHasCodyEnabled,
-                userCanUpgrade: false,
             })
         }
 
         // Configure AuthStatus for DotCom users
-
-        const proStatus = await this.client.getCurrentUserCodySubscription()
-        // Pro user without the pending status is the valid pro users
-        const isActiveProUser =
-            proStatus !== null &&
-            'plan' in proStatus &&
-            proStatus.plan === 'PRO' &&
-            proStatus.status !== 'PENDING'
 
         return newAuthStatus({
             ...userInfo,
@@ -287,7 +278,6 @@ export class AuthProvider implements AuthStatusProvider, vscode.Disposable {
             siteVersion,
             configOverwrites,
             authenticated: !!userInfo.id,
-            userCanUpgrade: !isActiveProUser,
             primaryEmail: userInfo.primaryEmail?.email ?? '',
         })
     }

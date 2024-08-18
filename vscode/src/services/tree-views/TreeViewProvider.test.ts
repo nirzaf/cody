@@ -33,10 +33,8 @@ describe('TreeViewProvider', () => {
      * Refreshes the tree with the new auth flags and waits for the update.
      */
     async function updateTree({
-        upgradeAvailable,
         endpoint,
     }: {
-        upgradeAvailable: boolean
         endpoint: URL
     }): Promise<void> {
         const nextUpdate = waitForTreeUpdate()
@@ -46,7 +44,6 @@ describe('TreeViewProvider', () => {
                 isDotCom: isDotCom(endpoint.toString()),
                 authenticated: true,
                 siteHasCodyEnabled: true,
-                userCanUpgrade: upgradeAvailable,
                 siteVersion: '',
                 username: 'someuser',
                 primaryEmail: 'me@domain.test',
@@ -62,39 +59,16 @@ describe('TreeViewProvider', () => {
         return items.find(item => (item.resourceUri as any)?.label === label)
     }
 
-    describe('Cody Pro Upgrade', () => {
-        it('is shown when user can upgrade', async () => {
-            tree = new TreeViewProvider('support', emptyMockFeatureFlagProvider)
-            await updateTree({ upgradeAvailable: true, endpoint: DOTCOM_URL })
-            expect(await findTreeItem('Upgrade')).not.toBeUndefined()
-            expect(await findTreeItem('Usage')).not.toBeUndefined()
-        })
-
-        it('is not shown when user cannot upgrade', async () => {
-            tree = new TreeViewProvider('support', emptyMockFeatureFlagProvider)
-            await updateTree({ upgradeAvailable: false, endpoint: DOTCOM_URL })
-            expect(await findTreeItem('Upgrade')).toBeUndefined()
-            expect(await findTreeItem('Usage')).toBeUndefined()
-        })
-
-        it('is not shown when not dotCom regardless of GA or upgrade flags', async () => {
-            tree = new TreeViewProvider('support', emptyMockFeatureFlagProvider)
-            await updateTree({ upgradeAvailable: true, endpoint: new URL('https://example.org') })
-            expect(await findTreeItem('Upgrade')).toBeUndefined()
-            expect(await findTreeItem('Usage')).toBeUndefined()
-        })
-    })
-
     describe('Account link', () => {
-        it('is shown when user is pro', async () => {
+        it('is shown when user is on dotcom', async () => {
             tree = new TreeViewProvider('support', emptyMockFeatureFlagProvider)
-            await updateTree({ upgradeAvailable: false, endpoint: DOTCOM_URL })
+            await updateTree({ endpoint: DOTCOM_URL })
             const accountTreeItem = await findTreeItem('Account')
             expect(accountTreeItem).not.toBeUndefined()
         })
         it('is shown when user is Enterprise', async () => {
             tree = new TreeViewProvider('support', emptyMockFeatureFlagProvider)
-            await updateTree({ upgradeAvailable: true, endpoint: new URL('https://example.org') })
+            await updateTree({ endpoint: new URL('https://example.org') })
             expect(await findTreeItem('Account')).not.toBeUndefined()
         })
     })

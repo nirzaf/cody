@@ -18,7 +18,6 @@ export async function openAccountMenu(authStatus: AuthStatus): Promise<AccountMe
     const displayName = authStatus.displayName || authStatus.username
     const email = authStatus.primaryEmail || 'No Email'
     const username = authStatus.username || authStatus.displayName
-    const planDetail = `Plan: ${authStatus.userCanUpgrade ? 'Cody Free' : 'Cody Pro'}`
     const enterpriseDetail = `Enterprise Instance:\n${authStatus.endpoint}`
     const offlineDetail = 'Use Cody offline with Ollama'
 
@@ -27,7 +26,11 @@ export async function openAccountMenu(authStatus: AuthStatus): Promise<AccountMe
 
     const messageOptions = {
         modal: true,
-        detail: isOffline ? offlineDetail : isDotComInstance ? planDetail : enterpriseDetail,
+        detail: isOffline
+            ? offlineDetail
+            : isDotComInstance
+              ? 'Using Cody on Sourcegraph.com'
+              : enterpriseDetail,
     }
 
     const online = isDotComInstance

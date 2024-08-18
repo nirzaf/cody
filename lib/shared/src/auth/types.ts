@@ -19,14 +19,6 @@ export interface AuthStatus {
     primaryEmail: string
     displayName?: string
     avatarURL: string
-    /**
-     * Whether the users account can be upgraded.
-     *
-     * This is `true` if the user is on dotCom and has not already upgraded. It
-     * is used to customize rate limit messages and show additional upgrade
-     * buttons in the UI.
-     */
-    userCanUpgrade: boolean
 
     isOfflineMode?: boolean
 }
@@ -43,7 +35,6 @@ export const defaultAuthStatus: AuthStatus = {
     authenticated: false,
     siteHasCodyEnabled: false,
     siteVersion: '',
-    userCanUpgrade: false,
     username: '',
     primaryEmail: '',
     displayName: '',
@@ -59,7 +50,6 @@ export const unauthenticatedStatus: AuthStatus = {
     authenticated: false,
     siteHasCodyEnabled: false,
     siteVersion: '',
-    userCanUpgrade: false,
     username: '',
     primaryEmail: '',
     displayName: '',
@@ -75,7 +65,6 @@ export const networkErrorAuthStatus: Omit<AuthStatus, 'endpoint'> = {
     showNetworkError: true,
     siteHasCodyEnabled: false,
     siteVersion: '',
-    userCanUpgrade: false,
     username: '',
     primaryEmail: '',
     displayName: '',
@@ -92,7 +81,6 @@ export const offlineModeAuthStatus: AuthStatus = {
     authenticated: true,
     siteHasCodyEnabled: true,
     siteVersion: '',
-    userCanUpgrade: false,
     username: 'offline',
     primaryEmail: '',
     displayName: '',
@@ -101,11 +89,11 @@ export const offlineModeAuthStatus: AuthStatus = {
 }
 
 export function isCodyProUser(authStatus: AuthStatus): boolean {
-    return authStatus.isDotCom && !authStatus.userCanUpgrade
+    return authStatus.isDotCom // TODO!(sqs)
 }
 
 export function isFreeUser(authStatus: AuthStatus): boolean {
-    return authStatus.isDotCom && authStatus.userCanUpgrade
+    return false // TODO!(sqs)
 }
 
 export function isEnterpriseUser(authStatus: AuthStatus): boolean {

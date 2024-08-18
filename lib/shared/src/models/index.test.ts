@@ -15,17 +15,11 @@ import { ModelTag } from './tags'
 import { ModelUsage } from './types'
 
 describe('Model Provider', () => {
-    const freeUserAuthStatus: AuthStatus = {
+    const dotcomUserAuthStatus: AuthStatus = {
         ...defaultAuthStatus,
         endpoint: 'https://sourcegraph.example.com',
         authenticated: true,
         isDotCom: true,
-        userCanUpgrade: true,
-    }
-
-    const codyProAuthStatus: AuthStatus = {
-        ...freeUserAuthStatus,
-        userCanUpgrade: false,
     }
 
     const enterpriseAuthStatus: AuthStatus = {
@@ -136,7 +130,7 @@ describe('Model Provider', () => {
         })
 
         beforeEach(() => {
-            modelsService.setAuthStatus(codyProAuthStatus)
+            modelsService.setAuthStatus(dotcomUserAuthStatus)
             modelsService.setModels([model1chat, model2chat, model3all, model4edit])
         })
 
@@ -349,7 +343,7 @@ describe('Model Provider', () => {
         })
 
         it('returns false for unknown model', () => {
-            modelsService.setAuthStatus(codyProAuthStatus)
+            modelsService.setAuthStatus(dotcomUserAuthStatus)
             expect(modelsService.isModelAvailable('unknown-model')).toBe(false)
         })
 
@@ -361,25 +355,14 @@ describe('Model Provider', () => {
         })
 
         it('allows Cody Pro user to use Pro and Free models', () => {
-            modelsService.setAuthStatus(codyProAuthStatus)
+            modelsService.setAuthStatus(dotcomUserAuthStatus)
             expect(modelsService.isModelAvailable(enterpriseModel)).toBe(false)
             expect(modelsService.isModelAvailable(proModel)).toBe(true)
             expect(modelsService.isModelAvailable(freeModel)).toBe(true)
         })
 
-        it('allows free user to use only Free models', () => {
-            modelsService.setAuthStatus(freeUserAuthStatus)
-            expect(modelsService.isModelAvailable(enterpriseModel)).toBe(false)
-            expect(modelsService.isModelAvailable(proModel)).toBe(false)
-            expect(modelsService.isModelAvailable(freeModel)).toBe(true)
-        })
-
         it('handles model passed as string', () => {
-            modelsService.setAuthStatus(freeUserAuthStatus)
-            expect(modelsService.isModelAvailable(freeModel.model)).toBe(true)
-            expect(modelsService.isModelAvailable(proModel.model)).toBe(false)
-
-            modelsService.setAuthStatus(codyProAuthStatus)
+            modelsService.setAuthStatus(dotcomUserAuthStatus)
             expect(modelsService.isModelAvailable(proModel.model)).toBe(true)
         })
     })

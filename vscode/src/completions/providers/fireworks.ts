@@ -64,7 +64,7 @@ export interface FireworksOptions {
     timeouts: AutocompleteTimeouts
     auth: Pick<AuthCredentials, 'accessToken'>
     config: Pick<ClientConfiguration, 'autocompleteExperimentalFireworksOptions'>
-    authStatus: Pick<AuthStatus, 'userCanUpgrade' | 'isDotCom' | 'endpoint'>
+    authStatus: Pick<AuthStatus, 'isDotCom' | 'endpoint'>
 }
 
 const PROVIDER_IDENTIFIER = 'fireworks'
@@ -190,7 +190,7 @@ class FireworksProvider extends Provider {
     private client: CodeCompletionsClient
     private timeouts?: AutocompleteTimeouts
     private fastPathAccessToken?: string
-    private authStatus: Pick<AuthStatus, 'userCanUpgrade' | 'isDotCom' | 'endpoint'>
+    private authStatus: Pick<AuthStatus, 'isDotCom' | 'endpoint'>
     private isLocalInstance: boolean
     private fireworksConfig?: ClientConfiguration['autocompleteExperimentalFireworksOptions']
     private promptExtractor: FIMModelSpecificPromptExtractor
@@ -599,7 +599,7 @@ class FireworksProvider extends Provider {
                 // identical to the SG instance response but does not contain information on whether a user
                 // is eligible to upgrade to the pro plan. We get this from the authState instead.
                 if (response.status === 429) {
-                    const upgradeIsAvailable = self.authStatus.userCanUpgrade
+                    const upgradeIsAvailable = false // TODO!(sqs)
 
                     throw recordErrorToSpan(
                         span,
