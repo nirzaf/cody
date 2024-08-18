@@ -3,7 +3,15 @@ import { LRUCache } from 'lru-cache'
 import { RE2JS as RE2 } from 're2js'
 import type * as vscode from 'vscode'
 import { isFileURI } from '../common/uri'
+import type { ResolvedConfiguration } from '../configuration/resolver'
 import { logDebug, logError } from '../logger'
+import {
+    type SyncObservable,
+    type Unsubscribable,
+    distinctUntilChanged,
+    pluck,
+} from '../misc/observable'
+import { singletonNotYetSet } from '../singletons'
 import { graphqlClient } from '../sourcegraph-api/graphql'
 import {
     type CodyContextFilterItem,
@@ -95,10 +103,20 @@ export class ContextFiltersProvider implements vscode.Disposable {
     private readonly contextFiltersSubscriber = createSubscriber<ContextFilters>()
     public readonly onContextFiltersChanged = this.contextFiltersSubscriber.subscribe
 
-    async init(getRepoNamesFromWorkspaceUri: GetRepoNamesFromWorkspaceUri) {
+    private configSubscription: Unsubscribable
+
+    constructor(
+        config: SyncObservable<ResolvedConfiguration>,
+        getRepoNamesFromWorkspaceUri: GetRepoNamesFromWorkspaceUri
+    ) {
         this.getRepoNamesFromWorkspaceUri = getRepoNamesFromWorkspaceUri
-        this.reset()
-        this.startRefetchTimer(await this.fetchContextFilters())
+
+        this.configSubscription = config
+            .pipe(pluck('auth'), distinctUntilChanged())
+            .subscribe(async () => {
+                this.reset()
+                this.startRefetchTimer(await this.fetchContextFilters())
+            })
     }
 
     // Fetches context filters and updates the cached filter results. Returns
@@ -241,6 +259,7 @@ export class ContextFiltersProvider implements vscode.Disposable {
 
     public dispose(): void {
         this.reset()
+        this.configSubscription.unsubscribe()
     }
 
     private hasAllowEverythingFilters(): boolean {
@@ -279,6 +298,5 @@ function parseContextFilterItem(item: CodyContextFilterItem): ParsedContextFilte
 
 /**
  * A singleton instance of the `ContextFiltersProvider` class.
- * `contextFiltersProvider.init` should be called and awaited on extension activation.
  */
-export const contextFiltersProvider = new ContextFiltersProvider()
+export const contextFiltersProvider = singletonNotYetSet<ContextFiltersProvider>()

@@ -1,10 +1,10 @@
 import {
+    AUTH_STATUS_FIXTURE,
     ClientConfigSingleton,
     Model,
     ModelTag,
     ModelUsage,
     RestClient,
-    defaultAuthStatus,
     getDotComDefaultModels,
     modelsService,
     unauthenticatedStatus,
@@ -46,14 +46,14 @@ describe('syncModels', () => {
     })
 
     it('sets dotcom default models if on dotcom', async () => {
-        const authStatus = { ...defaultAuthStatus, isDotCom: true, authenticated: true }
+        const authStatus = { ...AUTH_STATUS_FIXTURE, isDotCom: true, authenticated: true }
 
         await syncModels(authStatus)
         expect(setModelsSpy).toHaveBeenCalledWith(getDotComDefaultModels())
     })
 
     it('sets no models if the enterprise instance does not have Cody enabled', async () => {
-        const authStatus = { ...defaultAuthStatus, isDotCom: false, authenticated: true }
+        const authStatus = { ...AUTH_STATUS_FIXTURE, isDotCom: false, authenticated: true }
 
         await syncModels(authStatus)
         expect(setModelsSpy).toHaveBeenCalledWith([])
@@ -62,7 +62,7 @@ describe('syncModels', () => {
     it('sets enterprise context window model if chatModel config overwrite exists', async () => {
         const chatModel = 'custom-model'
         const authStatus = {
-            ...defaultAuthStatus,
+            ...AUTH_STATUS_FIXTURE,
             authenticated: true,
             isDotCom: false,
             configOverwrites: { chatModel },
@@ -137,7 +137,7 @@ describe('syncModels from the server', () => {
     it.skip('throws if no creds are available', async () => {
         await expect(async () => {
             const authStatus = {
-                ...defaultAuthStatus,
+                ...AUTH_STATUS_FIXTURE,
                 authenticated: true,
                 // Our mock for secretStorage will only return a user access token if
                 // the endpoint matches what is expected.
@@ -149,7 +149,7 @@ describe('syncModels from the server', () => {
 
     it('works', async () => {
         const authStatus = {
-            ...defaultAuthStatus,
+            ...AUTH_STATUS_FIXTURE,
             authenticated: true,
             endpoint: testEndpoint,
         }

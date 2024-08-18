@@ -1,11 +1,10 @@
 import * as vscode from 'vscode'
 
 import type {
-    AuthCredentials,
-    ClientConfiguration,
     CompletionLogger,
-    CompletionsClientConfig,
+    ResolvedConfiguration,
     SourcegraphCompletionsClient,
+    SyncObservable,
 } from '@sourcegraph/cody-shared'
 import type { startTokenReceiver } from './auth/token-receiver'
 
@@ -18,13 +17,10 @@ import type { createController } from '@openctx/vscode-lib'
 import type { CommandsProvider } from './commands/services/provider'
 import { ExtensionApi } from './extension-api'
 import type { ExtensionClient } from './extension-client'
-import type { LocalEmbeddingsConfig, LocalEmbeddingsController } from './local-context/local-embeddings'
+import type { LocalEmbeddingsController } from './local-context/local-embeddings'
 import type { SymfRunner } from './local-context/symf'
 import { start } from './main'
-import type {
-    OpenTelemetryService,
-    OpenTelemetryServiceConfig,
-} from './services/open-telemetry/OpenTelemetryService.node'
+import type { OpenTelemetryService } from './services/open-telemetry/OpenTelemetryService.node'
 import { type SentryService, captureException } from './services/sentry/sentry'
 
 type Constructor<T extends new (...args: any) => any> = T extends new (
@@ -38,21 +34,18 @@ export interface PlatformContext {
     createStorage?: () => Promise<vscode.Memento>
     createCommandsProvider?: Constructor<typeof CommandsProvider>
     createLocalEmbeddingsController?: (
-        config: LocalEmbeddingsConfig
+        config: SyncObservable<ResolvedConfiguration>
     ) => Promise<LocalEmbeddingsController>
     createSymfRunner?: Constructor<typeof SymfRunner>
     createBfgRetriever?: () => BfgRetriever
     createCompletionsClient: (
-        config: CompletionsClientConfig,
+        config: SyncObservable<ResolvedConfiguration>,
         logger?: CompletionLogger
     ) => SourcegraphCompletionsClient
-    createSentryService?: (
-        config: Pick<ClientConfiguration, 'isRunningInsideAgent' | 'agentIDE'>,
-        auth: AuthCredentials
-    ) => SentryService
-    createOpenTelemetryService?: (config: OpenTelemetryServiceConfig) => OpenTelemetryService
+    createSentryService?: (config: SyncObservable<ResolvedConfiguration>) => SentryService
+    createOpenTelemetryService?: (config: SyncObservable<ResolvedConfiguration>) => OpenTelemetryService
     startTokenReceiver?: typeof startTokenReceiver
-    onConfigurationChange?: (configuration: ClientConfiguration) => void
+    otherInitialization?: (config: SyncObservable<ResolvedConfiguration>) => vscode.Disposable
     extensionClient: ExtensionClient
 }
 

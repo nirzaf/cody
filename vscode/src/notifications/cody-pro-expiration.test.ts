@@ -2,11 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi, vitest } from 'vitest'
 import { localStorage } from '../services/LocalStorageProvider'
 
 import {
+    AUTH_STATUS_FIXTURE,
     type AuthStatus,
     FeatureFlag,
     FeatureFlagProvider,
     type SourcegraphGraphQLAPIClient,
-    defaultAuthStatus,
 } from '@sourcegraph/cody-shared'
 import type { AuthProvider } from '../services/AuthProvider'
 import { CodyProExpirationNotifications } from './cody-pro-expiration'
@@ -66,7 +66,7 @@ describe('Cody Pro expiration notifications', () => {
             getAuthStatus: () => authStatus,
         } as unknown as AuthProvider
         featureFlagProvider = new FeatureFlagProvider(apiClient)
-        authStatus = { ...defaultAuthStatus, isLoggedIn: true, isDotCom: true }
+        authStatus = { ...AUTH_STATUS_FIXTURE, isLoggedIn: true, isDotCom: true }
         localStorageData = {}
     })
 

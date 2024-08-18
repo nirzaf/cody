@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { EMPTY, defaultAuthStatus, graphqlClient } from '@sourcegraph/cody-shared'
+import { AUTH_STATUS_FIXTURE, EMPTY, graphqlClient } from '@sourcegraph/cody-shared'
 
 import type { AuthProvider } from '../services/AuthProvider'
 
@@ -13,7 +13,7 @@ describe('getRepoNamesFromWorkspaceUri', () => {
         const repoNameResolver = new RepoNameResolver()
         repoNameResolver.init({
             changes: EMPTY,
-            getAuthStatus: () => ({ ...defaultAuthStatus, isLoggedIn: true, isDotCom: false }),
+            getAuthStatus: () => ({ ...AUTH_STATUS_FIXTURE, isLoggedIn: true, isDotCom: false }),
         } as unknown as AuthProvider)
 
         vi.spyOn(gitExtensionAPI, 'gitRemoteUrlsFromGitExtension').mockReturnValue([
@@ -47,7 +47,7 @@ describe('getRepoNamesFromWorkspaceUri', () => {
         const repoNameResolver = new RepoNameResolver()
         repoNameResolver.init({
             changes: EMPTY,
-            getAuthStatus: () => ({ ...defaultAuthStatus, isLoggedIn: true, isDotCom: true }),
+            getAuthStatus: () => ({ ...AUTH_STATUS_FIXTURE, isLoggedIn: true, isDotCom: true }),
         } as unknown as AuthProvider)
 
         vi.spyOn(gitExtensionAPI, 'gitRemoteUrlsFromGitExtension').mockReturnValue([

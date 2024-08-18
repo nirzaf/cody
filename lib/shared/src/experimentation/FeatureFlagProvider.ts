@@ -1,8 +1,16 @@
 import { Observable } from 'observable-fns'
 import type { Event } from 'vscode'
+import type { ResolvedConfiguration } from '../configuration/resolver'
 import { logDebug } from '../logger'
-import { fromVSCodeEvent } from '../misc/observable'
-import { type SourcegraphGraphQLAPIClient, graphqlClient } from '../sourcegraph-api/graphql'
+import {
+    type SyncObservable,
+    type Unsubscribable,
+    distinctUntilChanged,
+    fromVSCodeEvent,
+    pluck,
+} from '../misc/observable'
+import { singletonNotYetSet } from '../singletons'
+import type { SourcegraphGraphQLAPIClient } from '../sourcegraph-api/graphql'
 import { wrapInActiveSpan } from '../tracing'
 import { isError } from '../utils'
 
@@ -112,12 +120,24 @@ export class FeatureFlagProvider {
     // When we have at least one subscription, ensure that we also periodically refresh the flags
     private nextRefreshTimeout: NodeJS.Timeout | number | undefined = undefined
 
-    constructor(private apiClient: SourcegraphGraphQLAPIClient) {}
+    private configSubscription: Unsubscribable
+
+    constructor(
+        private apiClient: SourcegraphGraphQLAPIClient,
+        private config: SyncObservable<Pick<ResolvedConfiguration, 'auth'>>
+    ) {
+        // Refresh when auth (endpoint or token) changes.
+        this.configSubscription = this.config
+            .pipe(pluck('auth'), distinctUntilChanged())
+            .subscribe(() => {
+                this.refresh()
+            })
+    }
 
     public getFromCache(flagName: FeatureFlag): boolean | undefined {
         void this.refreshIfStale()
 
-        const endpoint = this.apiClient.endpoint
+        const endpoint = this.config.value.auth.serverEndpoint
 
         const exposedValue = this.exposedFeatureFlags[endpoint]?.[flagName]
         if (exposedValue !== undefined) {
@@ -132,12 +152,12 @@ export class FeatureFlagProvider {
     }
 
     public getExposedExperiments(): Record<string, boolean> {
-        const endpoint = this.apiClient.endpoint
+        const endpoint = this.config.value.auth.serverEndpoint
         return this.exposedFeatureFlags[endpoint] || {}
     }
 
     public async evaluateFeatureFlag(flagName: FeatureFlag): Promise<boolean> {
-        const endpoint = this.apiClient.endpoint
+        const endpoint = this.config.value.auth.serverEndpoint
         return wrapInActiveSpan(`FeatureFlagProvider.evaluateFeatureFlag.${flagName}`, async () => {
             if (process.env.DISABLE_FEATURE_FLAGS) {
                 return false
@@ -201,7 +221,7 @@ export class FeatureFlagProvider {
 
     private async refreshFeatureFlags(): Promise<void> {
         return wrapInActiveSpan('FeatureFlagProvider.refreshFeatureFlags', async () => {
-            const endpoint = this.apiClient.endpoint
+            const endpoint = this.config.value.auth.serverEndpoint
             const data = process.env.DISABLE_FEATURE_FLAGS
                 ? {}
                 : await this.apiClient.getEvaluatedFeatureFlags()
@@ -229,7 +249,7 @@ export class FeatureFlagProvider {
     // flags not defined upstream, the changes will require a new call to `evaluateFeatureFlag` to
     // be picked up.
     public onFeatureFlagChanged(prefixFilter: string, callback: () => void): () => void {
-        const endpoint = this.apiClient.endpoint
+        const endpoint = this.config.value.auth.serverEndpoint
         const key = endpoint + '#' + prefixFilter
         const subscription = this.subscriptions.get(key)
         if (subscription) {
@@ -306,11 +326,19 @@ export class FeatureFlagProvider {
         }, {})
         return filteredFeatureFlags
     }
+
+    public dispose(): void {
+        if (this.nextRefreshTimeout) {
+            clearTimeout(this.nextRefreshTimeout)
+            this.nextRefreshTimeout = undefined
+        }
+        this.configSubscription.unsubscribe()
+    }
 }
 
 const NO_FLAGS: Record<string, never> = {}
 
-export const featureFlagProvider = new FeatureFlagProvider(graphqlClient)
+export const featureFlagProvider = singletonNotYetSet<FeatureFlagProvider>()
 
 function computeIfExistingFlagChanged(
     oldFlags: Record<string, boolean>,

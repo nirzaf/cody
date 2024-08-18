@@ -325,7 +325,7 @@ export const benchCommand = new commander.Command('bench')
         )
 
         // Required to use `PromptString`.
-        graphqlClient.setConfig({
+        graphqlClient.setResolvedConfigurationObservable({
             accessToken: options.srcAccessToken,
             serverEndpoint: options.srcEndpoint,
             customHeaders: {},
@@ -360,7 +360,7 @@ async function evaluateWorkspace(options: CodyBenchOptions, recordingDirectory: 
         // There is no VSC setting yet to configure the base edit model. Users
         // can only modify this setting by changing it through the quickpick
         // menu in VSC.
-        const provider = modelsService.getModelByIDSubstringOrError(editModel)
+        const provider = modelsService.instance!.getModelByIDSubstringOrError(editModel)
         baseGlobalState.editModel = provider.model
     }
 

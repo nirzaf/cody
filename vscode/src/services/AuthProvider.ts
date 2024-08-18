@@ -5,26 +5,28 @@ import {
     type AuthStatus,
     type AuthStatusProvider,
     ClientConfigSingleton,
-    CodyIDE,
     DOTCOM_URL,
+    type ResolvedConfiguration,
     SourcegraphGraphQLAPIClient,
-    defaultAuthStatus,
+    type SyncObservable,
+    type Unsubscribable,
+    dependentAbortController,
+    distinctUntilChanged,
     fromVSCodeEvent,
-    graphqlClient,
+    isAbortError,
     isDotCom,
     isError,
     logError,
-    networkErrorAuthStatus,
+    singletonNotYetSet,
+    syncObservableOf,
     telemetryRecorder,
-    unauthenticatedStatus,
 } from '@sourcegraph/cody-shared'
 
-import { type Observable, Subject } from 'observable-fns'
+import type { Observable } from 'observable-fns'
 import { AccountMenuOptions, openAccountMenu } from '../auth/account-menu'
 import { closeAuthProgressIndicator } from '../auth/auth-progress-indicator'
 import { ACCOUNT_USAGE_URL, isSourcegraphToken } from '../chat/protocol'
-import { newAuthStatus } from '../chat/utils'
-import { getConfiguration, getFullConfig } from '../configuration'
+import { inferCodyApiVersion } from '../chat/utils'
 import { logDebug } from '../log'
 import { syncModels } from '../models/sync'
 import { maybeStartInteractiveTutorial } from '../tutorial/helpers'
@@ -35,66 +37,81 @@ import { secretStorage } from './SecretStorageProvider'
 
 const HAS_AUTHENTICATED_BEFORE_KEY = 'has-authenticated-before'
 
+export const authProvider = singletonNotYetSet<AuthProvider>()
+
 export class AuthProvider implements AuthStatusProvider, vscode.Disposable {
     private endpointHistory: string[] = []
-    private client: SourcegraphGraphQLAPIClient | null = null
-    private status: AuthStatus = defaultAuthStatus
+    private status: AuthStatus | null = null
     private readonly didChangeEvent: vscode.EventEmitter<AuthStatus> =
         new vscode.EventEmitter<AuthStatus>()
     private disposables: vscode.Disposable[] = [this.didChangeEvent]
 
-    private static _instance: AuthProvider | null = null
-    public static get instance(): AuthProvider | null {
-        return AuthProvider._instance
-    }
+    private configSubscription: Unsubscribable
 
-    public static create(): AuthProvider {
-        if (!AuthProvider._instance) {
-            AuthProvider._instance = new AuthProvider()
-        }
-        return AuthProvider._instance
-    }
-
-    private credentials = new Subject<AuthCredentials>()
-    private constructor() {
-        this.status.endpoint = 'init'
+    public constructor(private config: SyncObservable<ResolvedConfiguration>) {
         this.loadEndpointHistory()
+
+        const lastEndpoint = config.value.clientState.lastUsedEndpoint ?? DOTCOM_URL.toString()
+
+        this.status = {
+            endpoint: lastEndpoint,
+            isLoggedIn: false,
+            isDotCom: isDotCom(lastEndpoint),
+            showInvalidAccessTokenError: false,
+            ephemeralConnectivityStatus: 'unknown',
+            user: null,
+            site: null,
+        }
+
+        // TODO!(sqs)
+        let firstAuth = true
+        this.configSubscription = config.subscribe(async ({ clientState }) => {
+            if (!firstAuth) {
+                return
+            }
+            firstAuth = false
+
+            // Attempt to auth with the last-used credentials.
+            const token = await secretStorage.get(lastEndpoint || '')
+            logDebug(
+                'AuthProvider:init:lastEndpoint',
+                token?.trim() ? 'Token recovered from secretStorage' : 'No token found in secretStorage',
+                lastEndpoint
+            )
+
+            if (this.status?.isLoggedIn) {
+                return // TODO!(sqs): how does it get here
+            }
+            await this.auth({
+                endpoint: lastEndpoint,
+                token: token || null,
+                isExtensionStartup: true,
+            }).catch(error => logError('AuthProvider:init:failed', lastEndpoint, { verbose: error }))
+        })
+
+        // TODO!(sqs)
+        // interval(4000).subscribe(async () => {
+        //     console.log('RELOAD')
+        //     this.reloadAuthStatus()
+        // })
     }
 
     public dispose(): void {
+        this.configSubscription.unsubscribe()
         for (const d of this.disposables) {
             d.dispose()
         }
         this.disposables = []
     }
 
-    /**
-     * Sign into the last endpoint the user was signed into, if any.
-     */
-    public async authWithLastUsedCredentials(): Promise<void> {
-        const lastEndpoint = localStorage?.getEndpoint() ?? defaultAuthStatus.endpoint
-        const token = await secretStorage.get(lastEndpoint || '')
-        logDebug(
-            'AuthProvider:init:lastEndpoint',
-            token?.trim() ? 'Token recovered from secretStorage' : 'No token found in secretStorage',
-            lastEndpoint
-        )
-
-        await this.auth({
-            endpoint: lastEndpoint,
-            token: token || null,
-            isExtensionStartup: true,
-        }).catch(error => logError('AuthProvider:init:failed', lastEndpoint, { verbose: error }))
-    }
-
     public changes: Observable<AuthStatus> = fromVSCodeEvent(
         this.didChangeEvent.event,
         this.getAuthStatus.bind(this)
-    )
+    ).pipe(distinctUntilChanged())
 
     // Display quickpick to select endpoint to sign in to
     public async signinMenu(type?: 'enterprise' | 'dotcom' | 'token', uri?: string): Promise<void> {
-        const mode = this.status.isLoggedIn ? 'switch' : 'signin'
+        const mode = this.status?.isLoggedIn ? 'switch' : 'signin'
         logDebug('AuthProvider:signinMenu', mode)
         telemetryRecorder.recordEvent('cody.auth.login', 'clicked')
         const item = await AuthMenu(mode, this.endpointHistory)
@@ -111,12 +128,13 @@ export class AuthProvider implements AuthStatusProvider, vscode.Disposable {
                 if (!instanceUrl) {
                     return
                 }
-                this.status.endpoint = instanceUrl
-                this.redirectToEndpointLogin(instanceUrl)
+                localStorage.saveEndpoint(instanceUrl)
+                await this.redirectToEndpointLogin(instanceUrl)
                 break
             }
             case 'dotcom':
-                this.redirectToEndpointLogin(DOTCOM_URL.href)
+                localStorage.saveEndpoint(DOTCOM_URL.href)
+                await this.redirectToEndpointLogin(DOTCOM_URL.href)
                 break
             case 'token': {
                 const instanceUrl = await showInstanceURLInputBox(uri || item.uri)
@@ -124,6 +142,7 @@ export class AuthProvider implements AuthStatusProvider, vscode.Disposable {
                     return
                 }
                 await this.signinMenuForInstanceUrl(instanceUrl)
+                localStorage.saveEndpoint(instanceUrl)
                 break
             }
             default: {
@@ -187,7 +206,9 @@ export class AuthProvider implements AuthStatusProvider, vscode.Disposable {
             case AccountMenuOptions.Manage: {
                 // Add the username to the web can warn if the logged in session on web is different from VS Code
                 const uri = vscode.Uri.parse(ACCOUNT_USAGE_URL.toString()).with({
-                    query: `cody_client_user=${encodeURIComponent(this.status.username)}`,
+                    query: this.status?.user?.username
+                        ? `cody_client_user=${encodeURIComponent(this.status?.user?.username)}`
+                        : undefined,
                 })
                 void vscode.env.openExternal(uri)
                 break
@@ -209,82 +230,93 @@ export class AuthProvider implements AuthStatusProvider, vscode.Disposable {
         await vscode.commands.executeCommand('setContext', 'cody.activated', false)
     }
 
-    // Create Auth Status
-    private async makeAuthStatus(credentials: AuthCredentials): Promise<AuthStatus> {
+    private async makeAuthStatus(
+        credentials: AuthCredentials,
+        signal: AbortSignal
+    ): Promise<AuthStatus> {
         const endpoint = credentials.serverEndpoint
         const token = credentials.accessToken
-        const isCodyWeb =
-            vscode.workspace.getConfiguration().get<string>('cody.advanced.agent.ide') === CodyIDE.Web
 
-        // Cody Web can work without access token since authorization flow
-        // relies on cookie authentication
-        if (isCodyWeb) {
-            if (!endpoint) {
-                return { ...defaultAuthStatus, endpoint }
-            }
-        } else {
-            if (!token || !endpoint) {
-                return { ...defaultAuthStatus, endpoint }
+        const endpointIsDotCom = isDotCom(endpoint)
+
+        if (!token) {
+            // TODO!(sqs): allow no token in Cody Web
+            return {
+                endpoint,
+                isDotCom: endpointIsDotCom,
+                isLoggedIn: false,
+                showInvalidAccessTokenError: false,
+                ephemeralConnectivityStatus: 'unknown',
+                user: null,
+                site: null,
             }
         }
-        // Cache the config and GraphQL client
-        if (this.credentials !== credentials || !this.client) {
-            this.credentials = credentials
-            this.client = new SourcegraphGraphQLAPIClient({
-                auth: credentials,
-                config: getConfiguration(),
+
+        // Check if credentials are valid and if Cody is enabled for the credentials and endpoint.
+        const client = new SourcegraphGraphQLAPIClient()
+        client.setResolvedConfigurationObservable(
+            syncObservableOf({
+                configuration: this.config.value.configuration,
+                auth: {
+                    serverEndpoint: endpoint,
+                    accessToken: token,
+                    customHeaders: this.config.value.configuration.customHeaders, // TODO!(sqs): where to get these from?
+                },
             })
-        }
-        // Version is for frontend to check if Cody is not enabled due to unsupported version when siteHasCodyEnabled is false
+        )
+
         const [{ enabled: siteHasCodyEnabled, version: siteVersion }, codyLLMConfiguration, userInfo] =
             await Promise.all([
-                this.client.isCodyEnabled(),
-                this.client.getCodyLLMConfiguration(),
-                this.client.getCurrentUserInfo(),
+                client.isCodyEnabled(signal),
+                client.getCodyLLMConfiguration(signal),
+                client.getCurrentUserInfo(signal),
             ])
+        signal.throwIfAborted()
 
-        logDebug('CodyLLMConfiguration', JSON.stringify(codyLLMConfiguration))
-        // check first if it's a network error
         if (isError(userInfo)) {
-            if (isNetworkError(userInfo)) {
-                return { ...networkErrorAuthStatus, endpoint }
+            return {
+                endpoint,
+                isDotCom: endpointIsDotCom,
+                isLoggedIn: false,
+                showInvalidAccessTokenError: isLikelyAccessTokenInvalidError(userInfo),
+                ephemeralConnectivityStatus: isLikelyOfflineError(userInfo) ? 'offline' : 'error',
+                user: null,
+                site: null,
             }
-            return { ...unauthenticatedStatus, endpoint }
         }
 
         const configOverwrites = isError(codyLLMConfiguration) ? undefined : codyLLMConfiguration
 
-        const isDotCom_ = isDotCom(endpoint)
-
-        if (!isDotCom_) {
-            return newAuthStatus({
-                ...userInfo,
-                endpoint,
-                isDotCom: isDotCom_,
+        return {
+            endpoint,
+            isDotCom: endpointIsDotCom,
+            isLoggedIn: siteHasCodyEnabled && userInfo !== null,
+            user: userInfo
+                ? {
+                      ...userInfo,
+                      authenticated: true,
+                      primaryEmail: userInfo.primaryEmail?.email ?? '',
+                  }
+                : null,
+            site: {
                 siteVersion,
                 configOverwrites,
-                authenticated: true,
                 siteHasCodyEnabled,
-            })
+                codyApiVersion: inferCodyApiVersion(siteVersion, endpointIsDotCom),
+            },
+            showInvalidAccessTokenError: false,
+            ephemeralConnectivityStatus: 'online',
         }
-
-        // Configure AuthStatus for DotCom users
-
-        return newAuthStatus({
-            ...userInfo,
-            endpoint,
-            isDotCom,
-            siteHasCodyEnabled,
-            siteVersion,
-            configOverwrites,
-            authenticated: !!userInfo.id,
-            primaryEmail: userInfo.primaryEmail?.email ?? '',
-        })
     }
 
     public getAuthStatus(): AuthStatus {
+        if (!this.status) {
+            throw new Error('AuthStatus is not ready')
+        }
         return this.status
     }
+
+    private inflightAuth: AbortController | null = null
 
     // It processes the authentication steps and stores the login info before sharing the auth status with chatview
     public async auth({
@@ -292,90 +324,109 @@ export class AuthProvider implements AuthStatusProvider, vscode.Disposable {
         token,
         customHeaders,
         isExtensionStartup = false,
+        signal,
     }: {
         endpoint: string
         token: string | null
         customHeaders?: Record<string, string> | null
         isExtensionStartup?: boolean
+        signal?: AbortSignal
     }): Promise<AuthStatus> {
+        if (this.inflightAuth) {
+            this.inflightAuth.abort()
+        }
+        const abortController = dependentAbortController(signal)
+        this.inflightAuth = abortController
+
         const credentials: AuthCredentials = {
             serverEndpoint: formatURL(endpoint) ?? '',
             accessToken: token,
-            customHeaders: customHeaders || this.credentials.customHeaders,
+            customHeaders: customHeaders || this.config.value.auth.customHeaders,
         }
 
         try {
-            const authStatus = await this.makeAuthStatus(credentials)
+            const authStatus = await this.makeAuthStatus(credentials, abortController.signal)
+            abortController.signal.throwIfAborted()
 
             await this.storeAuthInfo(credentials)
+            abortController.signal.throwIfAborted()
 
             await vscode.commands.executeCommand('setContext', 'cody.activated', authStatus.isLoggedIn)
+            abortController.signal.throwIfAborted()
 
-            await this.setAuthStatus(authStatus)
+            await this.setAuthStatus(authStatus, abortController.signal)
+            abortController.signal.throwIfAborted()
 
             // If the extension is authenticated on startup, it can't be a user's first
             // ever authentication. We store this to prevent logging first-ever events
             // for already existing users.
             if (isExtensionStartup && authStatus.isLoggedIn) {
                 await this.setHasAuthenticatedBefore()
+                abortController.signal.throwIfAborted()
             } else if (authStatus.isLoggedIn) {
                 this.handleFirstEverAuthentication()
             }
 
             return authStatus
         } catch (error) {
-            logDebug('AuthProvider:auth', 'failed', error)
+            if (isAbortError(error)) {
+                throw error
+            }
 
-            // Try to reload auth status in case of network error, else return default auth status
-            return await this.reloadAuthStatus().catch(() => unauthenticatedStatus)
+            logDebug('AuthProvider:auth', 'failed', error)
+            // TODO!(sqs): handle the kind of error this is
+            return {
+                endpoint,
+                isDotCom: isDotCom(endpoint),
+                isLoggedIn: false,
+                showInvalidAccessTokenError: true,
+                ephemeralConnectivityStatus: 'online',
+                user: null,
+                site: null,
+            }
+        } finally {
+            if (this.inflightAuth === abortController) {
+                this.inflightAuth = null
+            }
         }
     }
 
-    // Set auth status in case of reload
+    // Set auth status in case of reload TODO!(sqs): is this still needed?
     public async reloadAuthStatus(): Promise<AuthStatus> {
         await vscode.commands.executeCommand('setContext', 'cody.activated', false)
-
-        this.credentials = await getFullConfig()
         return await this.auth({
-            endpoint: this.credentials.serverEndpoint,
-            token: this.credentials.accessToken,
-            customHeaders: this.credentials.customHeaders,
+            endpoint: this.config.value.auth.serverEndpoint,
+            token: this.config.value.auth.accessToken,
+            customHeaders: this.config.value.auth.customHeaders,
         })
     }
 
     // Set auth status and share it with chatview
-    private async setAuthStatus(authStatus: AuthStatus): Promise<void> {
-        if (this.status === authStatus) {
-            return
-        }
+    private async setAuthStatus(authStatus: AuthStatus, signal: AbortSignal): Promise<void> {
         this.status = authStatus
-
-        if (authStatus.endpoint === 'init') {
-            return
-        }
-        await this.updateAuthStatus(authStatus)
-    }
-
-    private async updateAuthStatus(authStatus: AuthStatus): Promise<void> {
         try {
-            // We update the graphqlClient and ModelsService first
-            // because many listeners rely on these
-            graphqlClient.setConfig({ auth: this.credentials, config: getConfiguration() })
-            await ClientConfigSingleton.getInstance().setAuthStatus(authStatus)
+            await ClientConfigSingleton.getInstance().setAuthStatus(authStatus, signal)
             await syncModels(authStatus)
         } catch (error) {
-            logDebug('AuthProvider', 'updateAuthStatus error', error)
-        } finally {
-            this.didChangeEvent.fire(this.getAuthStatus())
-            let eventValue: 'disconnected' | 'connected' | 'failed'
-            if (authStatus.showNetworkError || authStatus.showInvalidAccessTokenError) {
-                eventValue = 'failed'
-            } else if (authStatus.isLoggedIn) {
-                eventValue = 'connected'
-            } else {
-                eventValue = 'disconnected'
+            if (!isAbortError(error)) {
+                logDebug('AuthProvider', 'updateAuthStatus error', error)
             }
-            telemetryRecorder.recordEvent('cody.auth', eventValue)
+        } finally {
+            if (!signal.aborted) {
+                this.didChangeEvent.fire(this.getAuthStatus())
+                let eventValue: 'disconnected' | 'connected' | 'failed'
+                if (
+                    authStatus.ephemeralConnectivityStatus === 'error' ||
+                    authStatus.showInvalidAccessTokenError
+                ) {
+                    eventValue = 'failed'
+                } else if (authStatus.isLoggedIn) {
+                    eventValue = 'connected'
+                } else {
+                    eventValue = 'disconnected'
+                }
+                telemetryRecorder.recordEvent('cody.auth', eventValue)
+            }
         }
     }
 
@@ -386,6 +437,10 @@ export class AuthProvider implements AuthStatusProvider, vscode.Disposable {
         customHeaders: Record<string, string> | undefined
     ): Promise<void> {
         closeAuthProgressIndicator()
+
+        if (!this.status) {
+            return
+        }
 
         const params = new URLSearchParams(uri.query)
         const token = params.get('code')
@@ -407,7 +462,7 @@ export class AuthProvider implements AuthStatusProvider, vscode.Disposable {
     }
 
     /** Open callback URL in browser to get token from instance. */
-    public redirectToEndpointLogin(uri: string): void {
+    public async redirectToEndpointLogin(uri: string): Promise<void> {
         const endpoint = formatURL(uri)
         if (!endpoint) {
             return
@@ -425,7 +480,7 @@ export class AuthProvider implements AuthStatusProvider, vscode.Disposable {
 
         const newTokenCallbackUrl = new URL('/user/settings/tokens/new/callback', endpoint)
         newTokenCallbackUrl.searchParams.append('requestFrom', getAuthReferralCode())
-        this.status.endpoint = endpoint
+        await localStorage.saveEndpoint(endpoint)
         void vscode.env.openExternal(vscode.Uri.parse(newTokenCallbackUrl.href))
     }
 
@@ -517,4 +572,18 @@ async function showAuthFailureMessage(endpoint: string): Promise<void> {
     await vscode.window.showErrorMessage(
         `Authentication failed. Please ensure Cody is enabled for ${authority} and verify your email address if required.`
     )
+}
+
+function isLikelyAccessTokenInvalidError(error: Error): boolean {
+    const message = error.message.toLowerCase()
+    return (
+        message.includes('http status code 401') ||
+        message.includes('http status code 403') ||
+        message.includes('http status code 404')
+    )
+}
+
+function isLikelyOfflineError(error: Error): boolean {
+    const message = error.message.toLowerCase()
+    return message.includes('failed to fetch')
 }

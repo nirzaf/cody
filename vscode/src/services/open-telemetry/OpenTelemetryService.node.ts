@@ -5,9 +5,10 @@ import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node'
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions'
 
 import {
-    type AuthCredentials,
-    type ClientConfiguration,
     FeatureFlag,
+    type ResolvedConfiguration,
+    type SyncObservable,
+    type Unsubscribable,
     featureFlagProvider,
 } from '@sourcegraph/cody-shared'
 
@@ -16,11 +17,6 @@ import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base'
 import { version } from '../../version'
 import { CodyTraceExporter } from './CodyTraceExport'
 import { ConsoleBatchSpanExporter } from './console-batch-span-exporter'
-
-export interface OpenTelemetryServiceConfig {
-    auth: Omit<AuthCredentials, 'customHeaders'>
-    config: Pick<ClientConfiguration, 'experimentalTracing' | 'debugVerbose'>
-}
 
 export class OpenTelemetryService {
     private tracerProvider?: NodeTracerProvider
@@ -32,38 +28,42 @@ export class OpenTelemetryService {
     // be run in parallel
     private reconfigurePromiseMutex: Promise<void> = Promise.resolve()
 
-    constructor(protected config: OpenTelemetryServiceConfig) {
-        this.reconfigurePromiseMutex = this.reconfigurePromiseMutex.then(() => this.reconfigure())
-    }
+    private configSubscription: Unsubscribable
 
-    public onConfigurationChange(newConfig: OpenTelemetryServiceConfig): void {
-        this.config = newConfig
-        this.reconfigurePromiseMutex = this.reconfigurePromiseMutex.then(() => this.reconfigure())
-    }
+    constructor(config: SyncObservable<ResolvedConfiguration>) {
+        this.configSubscription = config.subscribe(({ configuration, auth }) => {
+            this.reconfigurePromiseMutex = this.reconfigurePromiseMutex.then(async () => {
+                this.isTracingEnabled =
+                    configuration.experimentalTracing ||
+                    (await featureFlagProvider.evaluateFeatureFlag(FeatureFlag.CodyAutocompleteTracing))
 
-    private async reconfigure(): Promise<void> {
-        this.isTracingEnabled =
-            this.config.config.experimentalTracing ||
-            (await featureFlagProvider.evaluateFeatureFlag(FeatureFlag.CodyAutocompleteTracing))
+                const traceUrl = new URL('/-/debug/otlp/v1/traces', auth.serverEndpoint).toString()
+                if (this.lastTraceUrl === traceUrl) {
+                    return
+                }
+                this.lastTraceUrl = traceUrl
 
-        const traceUrl = new URL('/-/debug/otlp/v1/traces', this.config.auth.serverEndpoint).toString()
-        if (this.lastTraceUrl === traceUrl) {
-            return
-        }
-        this.lastTraceUrl = traceUrl
+                const logLevel = configuration.debugVerbose ? DiagLogLevel.INFO : DiagLogLevel.ERROR
+                diag.setLogger(new DiagConsoleLogger(), logLevel)
 
-        const logLevel = this.config.config.debugVerbose ? DiagLogLevel.INFO : DiagLogLevel.ERROR
-        diag.setLogger(new DiagConsoleLogger(), logLevel)
+                await this.reset()
 
-        await this.reset()
-
-        this.unloadInstrumentations = registerInstrumentations({
-            instrumentations: [new HttpInstrumentation()],
+                this.unloadInstrumentations = registerInstrumentations({
+                    instrumentations: [new HttpInstrumentation()],
+                })
+                this.configureTracerProvider(traceUrl, { configuration, auth })
+            })
         })
-        this.configureTracerProvider(traceUrl)
     }
 
-    public configureTracerProvider(traceUrl: string): void {
+    public dispose(): void {
+        this.configSubscription.unsubscribe()
+    }
+
+    private configureTracerProvider(
+        traceUrl: string,
+        { configuration, auth }: Pick<ResolvedConfiguration, 'configuration' | 'auth'>
+    ): void {
         this.tracerProvider = new NodeTracerProvider({
             resource: new Resource({
                 [SemanticResourceAttributes.SERVICE_NAME]: 'cody-client',
@@ -77,13 +77,13 @@ export class OpenTelemetryService {
                 new CodyTraceExporter({
                     traceUrl,
                     isTracingEnabled: this.isTracingEnabled,
-                    accessToken: this.config.auth.accessToken,
+                    accessToken: auth.accessToken,
                 })
             )
         )
 
         // Add the console exporter used in development for verbose logging and debugging.
-        if (process.env.NODE_ENV === 'development' || this.config.config.debugVerbose) {
+        if (process.env.NODE_ENV === 'development' || configuration.debugVerbose) {
             this.tracerProvider.addSpanProcessor(new BatchSpanProcessor(new ConsoleBatchSpanExporter()))
         }
 

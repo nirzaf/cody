@@ -452,7 +452,7 @@ export class ChatController implements vscode.Disposable, vscode.WebviewViewProv
                 break
             case 'auth': {
                 if (message.authKind === 'callback' && message.endpoint) {
-                    this.authProvider.redirectToEndpointLogin(message.endpoint)
+                    await this.authProvider.redirectToEndpointLogin(message.endpoint)
                     break
                 }
                 if (message.authKind === 'signin' && message.endpoint && message.value) {
@@ -1171,7 +1171,7 @@ export class ChatController implements vscode.Disposable, vscode.WebviewViewProv
         const experimentalSmartApplyEnabled = await this.isSmartApplyEnabled()
         const { prompt, context } = await prompter.makePrompt(
             this.chatModel,
-            this.authProvider.getAuthStatus().codyApiVersion,
+            this.authProvider.getAuthStatus().site.codyApiVersion, // TODO!(sqs)
             { experimentalSmartApplyEnabled }
         )
         abortSignal.throwIfAborted()

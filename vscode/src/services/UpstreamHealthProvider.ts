@@ -1,10 +1,15 @@
 import {
-    type AuthCredentials,
     type BrowserOrNodeResponse,
+    type ResolvedConfiguration,
+    type SyncObservable,
+    type Unsubscribable,
     addCustomUserAgent,
     addTraceparent,
+    distinctUntilChanged,
     isDotCom,
     logDebug,
+    pluck,
+    singletonNotYetSet,
     wrapInActiveSpan,
 } from '@sourcegraph/cody-shared'
 import { fetch } from '@sourcegraph/cody-shared'
@@ -21,39 +26,38 @@ const INITIAL_PING_DELAY_MS = 10 * 1000 // 10 seconds
  *
  * You can query it to get aggregates of the most recent pings.
  */
-class UpstreamHealthProvider implements vscode.Disposable {
+export class UpstreamHealthProvider implements vscode.Disposable {
     private lastUpstreamLatency?: number
     private lastGatewayLatency?: number
 
-    private auth: AuthCredentials | null = null
     private nextTimeoutId: NodeJS.Timeout | null = null
 
+    private configSubscription: Unsubscribable
+
+    constructor(private config: SyncObservable<Pick<ResolvedConfiguration, 'auth'>>) {
+        // Refresh when auth (endpoint or token) changes.
+        this.configSubscription = this.config
+            .pipe(pluck('auth'), distinctUntilChanged())
+            .subscribe(() => {
+                this.lastUpstreamLatency = undefined
+                this.lastGatewayLatency = undefined
+
+                // Enqueue the initial ping after a config change in 10 seconds. This
+                // avoids running the test while the extension is still initializing and
+                // competing with many other network requests.
+                if (this.nextTimeoutId) {
+                    clearTimeout(this.nextTimeoutId)
+                }
+                this.nextTimeoutId = setTimeout(this.measure.bind(this), INITIAL_PING_DELAY_MS)
+            })
+    }
+
     public getUpstreamLatency(): number | undefined {
-        if (!this.auth) {
-            return undefined
-        }
         return this.lastUpstreamLatency
     }
 
     public getGatewayLatency(): number | undefined {
-        if (!this.auth) {
-            return undefined
-        }
         return this.lastGatewayLatency
-    }
-
-    public onAuthChange(newAuth: AuthCredentials) {
-        this.auth = newAuth
-        this.lastUpstreamLatency = undefined
-        this.lastGatewayLatency = undefined
-
-        // Enqueue the initial ping after a config change in 10 seconds. This
-        // avoids running the test while the extension is still initializing and
-        // competing with many other network requests.
-        if (this.nextTimeoutId) {
-            clearTimeout(this.nextTimeoutId)
-        }
-        this.nextTimeoutId = setTimeout(this.measure.bind(this), INITIAL_PING_DELAY_MS)
     }
 
     private async measure() {
@@ -66,27 +70,24 @@ class UpstreamHealthProvider implements vscode.Disposable {
                 return
             }
 
-            if (!this.auth) {
-                throw new Error('UpstreamHealthProvider not initialized')
-            }
-
-            const sharedHeaders = new Headers(this.auth.customHeaders as HeadersInit)
+            const auth = this.config.value.auth
+            const sharedHeaders = new Headers(auth.customHeaders as HeadersInit)
             sharedHeaders.set('Content-Type', 'application/json; charset=utf-8')
             addTraceparent(sharedHeaders)
             addCustomUserAgent(sharedHeaders)
 
             const upstreamHeaders = new Headers(sharedHeaders)
-            if (this.auth.accessToken) {
-                upstreamHeaders.set('Authorization', `token ${this.auth.accessToken}`)
+            if (auth.accessToken) {
+                upstreamHeaders.set('Authorization', `token ${auth.accessToken}`)
             }
-            const url = new URL('/healthz', this.auth.serverEndpoint)
+            const url = new URL('/healthz', auth.serverEndpoint)
             const upstreamResult = await wrapInActiveSpan('upstream-latency.upstream', span => {
                 span.setAttribute('sampled', true)
                 return measureLatencyToUri(upstreamHeaders, url.toString())
             })
 
             // We don't want to congest the network so we run the test serially
-            if (isDotCom(this.auth.serverEndpoint)) {
+            if (isDotCom(auth.serverEndpoint)) {
                 const gatewayHeaders = new Headers(sharedHeaders)
                 const uri = 'https://cody-gateway.sourcegraph.com/-/__version'
                 const gatewayResult = await wrapInActiveSpan('upstream-latency.gateway', span => {
@@ -141,10 +142,11 @@ class UpstreamHealthProvider implements vscode.Disposable {
         if (this.nextTimeoutId) {
             clearTimeout(this.nextTimeoutId)
         }
+        this.configSubscription.unsubscribe()
     }
 }
 
-export const upstreamHealthProvider = new UpstreamHealthProvider()
+export const upstreamHealthProvider = singletonNotYetSet<UpstreamHealthProvider>()
 
 function headersToObject(headers: BrowserOrNodeResponse['headers']) {
     const result: Record<string, string> = {}

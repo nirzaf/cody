@@ -1,7 +1,8 @@
 import type { Span } from '@opentelemetry/api'
-import type { AuthCredentials } from '../../configuration'
 
+import type { ResolvedConfiguration } from '../../configuration/resolver'
 import { useCustomChatClient } from '../../llm-providers'
+import type { SyncObservable } from '../../misc/observable'
 import { recordErrorToSpan } from '../../tracing'
 import type {
     CompletionCallbacks,
@@ -31,8 +32,6 @@ export interface CompletionRequestParameters {
     customHeaders?: Record<string, string>
 }
 
-export type CompletionsClientConfig = AuthCredentials
-
 /**
  * Access the chat based LLM APIs via a Sourcegraph server instance.
  *
@@ -43,16 +42,12 @@ export abstract class SourcegraphCompletionsClient {
     private errorEncountered = false
 
     constructor(
-        protected config: CompletionsClientConfig,
+        protected config: SyncObservable<ResolvedConfiguration>,
         protected logger?: CompletionLogger
     ) {}
 
-    public onConfigurationChange(newConfig: CompletionsClientConfig): void {
-        this.config = newConfig
-    }
-
     protected get completionsEndpoint(): string {
-        return new URL('/.api/completions/stream', this.config.serverEndpoint).href
+        return new URL('/.api/completions/stream', this.config.value.auth.serverEndpoint).href
     }
 
     protected sendEvents(events: Event[], cb: CompletionCallbacks, span?: Span): void {

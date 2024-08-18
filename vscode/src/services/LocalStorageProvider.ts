@@ -1,8 +1,16 @@
 import * as uuid from 'uuid'
-import type { Memento } from 'vscode'
+import { EventEmitter, type Memento } from 'vscode'
 
-import type { AuthStatus, ChatHistory, UserLocalHistory } from '@sourcegraph/cody-shared'
-
+import {
+    type AuthStatus,
+    type ChatHistory,
+    type ClientState,
+    type SyncObservable,
+    type UserLocalHistory,
+    createSyncObservable,
+    distinctUntilChanged,
+    fromVSCodeEvent,
+} from '@sourcegraph/cody-shared'
 import { isSourcegraphToken } from '../chat/protocol'
 
 type ChatHistoryKey = `${string}-${string}`
@@ -44,6 +52,24 @@ class LocalStorage {
 
     public setStorage(storage: Memento): void {
         this._storage = storage
+    }
+
+    public getClientState(): ClientState {
+        return {
+            lastUsedEndpoint: this.getEndpoint(),
+            anonymousUserID: this.anonymousUserID().anonymousUserID,
+            lastUsedChatModality: this.getLastUsedChatModality(),
+        }
+    }
+
+    private onChange = new EventEmitter<void>()
+    public get clientStateChanges(): SyncObservable<ClientState> {
+        return createSyncObservable(
+            this.getClientState(),
+            fromVSCodeEvent(this.onChange.event)
+                .map(() => this.getClientState())
+                .pipe(distinctUntilChanged())
+        )
     }
 
     public getEndpoint(): string | null {
@@ -203,6 +229,7 @@ class LocalStorage {
     public async set<T>(key: string, value: T): Promise<void> {
         try {
             await this.storage.update(key, value)
+            this.onChange.fire()
         } catch (error) {
             console.error(error)
         }
@@ -210,6 +237,7 @@ class LocalStorage {
 
     public async delete(key: string): Promise<void> {
         await this.storage.update(key, undefined)
+        this.onChange.fire()
     }
 }
 

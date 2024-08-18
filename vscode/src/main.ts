@@ -3,23 +3,35 @@ import * as vscode from 'vscode'
 import {
     type ChatClient,
     ClientConfigSingleton,
-    type ClientConfiguration,
-    type ClientConfigurationWithAccessToken,
-    type ClientConfigurationWithEndpoint,
     type CodeCompletionsClient,
-    type ConfigWatcher,
+    type ConfigurationInput,
+    ContextFiltersProvider,
     type DefaultCodyCommands,
+    FeatureFlagProvider,
     type Guardrails,
+    ModelsService,
     PromptString,
+    type ResolvedConfiguration,
+    type SyncObservable,
+    combineLatestSyncObservable,
     contextFiltersProvider,
+    createResolvedConfigurationObservable,
+    createSyncObservable,
+    distinctUntilChanged,
     featureFlagProvider,
+    fromVSCodeEvent,
     graphqlClient,
+    mapSyncObservable,
     modelsService,
+    pipeSyncObservable,
     setClientNameVersion,
     setLogger,
+    setSingleton,
+    shareReplay,
     subscriptionDisposable,
     telemetryRecorder,
 } from '@sourcegraph/cody-shared'
+import { filter, map } from 'observable-fns'
 import type { CommandResult } from './CommandResult'
 import type { MessageProviderOptions } from './chat/MessageProvider'
 import { ChatsController, CodyChatEditorViewType } from './chat/chat-view/ChatsController'
@@ -49,8 +61,7 @@ import type { CodyCommandArgs } from './commands/types'
 import { newCodyCommandArgs } from './commands/utils/get-commands'
 import { createInlineCompletionItemProvider } from './completions/create-inline-completion-item-provider'
 import { createInlineCompletionItemFromMultipleProviders } from './completions/create-multi-model-inline-completion-provider'
-import { getAuthCredentials, getFullConfig } from './configuration'
-import { BaseConfigWatcher } from './configwatcher'
+import { getConfiguration } from './configuration'
 import { EnterpriseContextFactory } from './context/enterprise-context-factory'
 import { exposeOpenCtxClient } from './context/openctx'
 import { EditManager } from './edit/manager'
@@ -69,7 +80,7 @@ import { CodyProExpirationNotifications } from './notifications/cody-pro-expirat
 import { showSetupNotification } from './notifications/setup-notification'
 import { initVSCodeGitApi } from './repository/git-extension-api'
 import { repoNameResolver } from './repository/repo-name-resolver'
-import { AuthProvider } from './services/AuthProvider'
+import { AuthProvider, authProvider } from './services/AuthProvider'
 import { CharactersLogger } from './services/CharactersLogger'
 import { showFeedbackSupportQuickPick } from './services/FeedbackOptions'
 import { displayHistoryQuickPick } from './services/HistoryChat'
@@ -77,7 +88,7 @@ import { localStorage } from './services/LocalStorageProvider'
 import { VSCodeSecretStorage, secretStorage } from './services/SecretStorageProvider'
 import { registerSidebarCommands } from './services/SidebarCommands'
 import { type CodyStatusBar, createStatusBar } from './services/StatusBar'
-import { upstreamHealthProvider } from './services/UpstreamHealthProvider'
+import { UpstreamHealthProvider, upstreamHealthProvider } from './services/UpstreamHealthProvider'
 import { autocompleteStageCounterLogger } from './services/autocomplete-stage-counter-logger'
 import { setUpCodyIgnore } from './services/cody-ignore'
 import { createOrUpdateTelemetryRecorderProvider } from './services/telemetry-v2'
@@ -127,32 +138,88 @@ export async function start(
 
     const disposables: vscode.Disposable[] = []
 
-    const authProvider = AuthProvider.create()
-    const configWatcher = await BaseConfigWatcher.create(authProvider, disposables)
+    const configInput: SyncObservable<ConfigurationInput> = mapSyncObservable(
+        combineLatestSyncObservable([
+            createSyncObservable(
+                getConfiguration(),
+                fromVSCodeEvent(vscode.workspace.onDidChangeConfiguration).pipe(
+                    filter(
+                        event =>
+                            event.affectsConfiguration('cody') || event.affectsConfiguration('openctx')
+                    ),
+                    map(() => getConfiguration()),
+                    distinctUntilChanged()
+                )
+            ),
+            mapSyncObservable(
+                createSyncObservable(
+                    undefined,
+                    fromVSCodeEvent(secretStorage.onDidChange.bind(secretStorage)).pipe(
+                        map(() => undefined)
+                    )
+                ),
+                () => secretStorage
+            ),
+            pipeSyncObservable(localStorage.clientStateChanges, distinctUntilChanged()),
+        ]),
+        ([clientConfiguration, clientSecrets, clientState]) =>
+            ({
+                clientConfiguration,
+                clientSecrets,
+                clientState,
+                serverOverrides: {}, // TODO!(sqs)
+            }) satisfies ConfigurationInput
+    )
+
+    const config = pipeSyncObservable(
+        await createResolvedConfigurationObservable(configInput),
+        distinctUntilChanged(),
+        shareReplay()
+    )
+
+    // TODO!(sqs): delete this, ensuring not called too many times
+    let configChanges = 0
+    let lastConfigTime = performance.now()
     disposables.push(
         subscriptionDisposable(
-            configWatcher.changes.subscribe({
-                next: config => configureEventsInfra(config, isExtensionModeDevOrTest, authProvider),
+            config.subscribe(config => {
+                const now = performance.now()
+                console.debug(
+                    `%cCONFIG ${++configChanges} %c[+${Math.round(now - lastConfigTime)}ms]`,
+                    'color: green',
+                    'color: gray',
+                    config
+                )
+                lastConfigTime = now
+            })
+        )
+    )
+
+    disposables.push(setSingleton(authProvider, new AuthProvider(config)))
+
+    let authStatusChanges = 0
+    let lastAuthTime = performance.now()
+    disposables.push(
+        subscriptionDisposable(
+            authProvider.changes.subscribe(authStatus => {
+                const now = performance.now()
+                console.debug(
+                    `%cAUTH ${++authStatusChanges} %c[+${Math.round(now - lastAuthTime)}ms]`,
+                    'color: green',
+                    'color: gray',
+                    authStatus
+                )
+                lastAuthTime = now
             })
         )
     )
 
     disposables.push(
-        subscriptionDisposable(
-            configWatcher.changes.subscribe({
-                next: config => {
-                    platform.onConfigurationChange?.(config)
-                    registerModelsFromVSCodeConfiguration()
-                },
-            })
-        )
+        createOrUpdateTelemetryRecorderProvider(config, isExtensionModeDevOrTest, authProvider),
+        registerModelsFromVSCodeConfiguration(config)
     )
 
-    void authProvider.authWithLastUsedCredentials()
-
-    disposables.push(
-        await register(context, authProvider, configWatcher, platform, isExtensionModeDevOrTest)
-    )
+    disposables.push(await register(context, authProvider, config, platform, isExtensionModeDevOrTest))
 
     return vscode.Disposable.from(...disposables)
 }
@@ -161,7 +228,7 @@ export async function start(
 const register = async (
     context: vscode.ExtensionContext,
     authProvider: AuthProvider,
-    configWatcher: ConfigWatcher<ClientConfiguration>,
+    config: SyncObservable<ResolvedConfiguration>,
     platform: PlatformContext,
     isExtensionModeDevOrTest: boolean
 ): Promise<vscode.Disposable> => {
@@ -173,13 +240,7 @@ const register = async (
     disposables.push(manageDisplayPathEnvInfoForExtension())
 
     // Initialize singletons
-    await initializeSingletons(
-        platform,
-        authProvider,
-        configWatcher,
-        isExtensionModeDevOrTest,
-        disposables
-    )
+    await initializeSingletons(platform, config, disposables)
 
     // Ensure Git API is available
     disposables.push(await initVSCodeGitApi())
@@ -194,37 +255,15 @@ const register = async (
         codeCompletionsClient,
         guardrails,
         localEmbeddings,
-        onConfigurationChange: externalServicesOnDidConfigurationChange,
         symfRunner,
         contextAPIClient,
-    } = await configureExternalServices(context, configWatcher, platform, authProvider)
-    disposables.push(
-        subscriptionDisposable(
-            configWatcher.changes.subscribe({
-                next: async config => {
-                    const auth = await getAuthCredentials()
-                    externalServicesOnDidConfigurationChange(config)
-                    localEmbeddings?.setAuth(auth)
-                },
-            })
-        )
-    )
-    if (symfRunner) {
-        disposables.push(symfRunner)
-    }
+        dispose: disposeExternalServices,
+    } = await configureExternalServices(context, config, platform, authProvider)
+    disposables.push({ dispose: disposeExternalServices })
 
     // Initialize enterprise context
-    const enterpriseContextFactory = new EnterpriseContextFactory(completionsClient)
+    const enterpriseContextFactory = new EnterpriseContextFactory(completionsClient, config)
     disposables.push(enterpriseContextFactory)
-    disposables.push(
-        subscriptionDisposable(
-            configWatcher.changes.subscribe({
-                next: () => {
-                    enterpriseContextFactory.clientConfigurationDidChange()
-                },
-            })
-        )
-    )
 
     const editor = new VSCodeEditor()
     const contextRetriever = new ContextRetriever(editor, symfRunner, completionsClient)
@@ -263,7 +302,7 @@ const register = async (
     )
 
     const autocompleteSetup = registerAutocomplete(
-        configWatcher,
+        config,
         platform,
         authProvider,
         statusBar,
@@ -273,36 +312,36 @@ const register = async (
     const tutorialSetup = tryRegisterTutorial(context, disposables)
     const openCtxSetup = exposeOpenCtxClient(
         context,
-        configWatcher,
+        config,
         authProvider,
         platform.createOpenCtxController
     )
 
-    registerCodyCommands(configWatcher, statusBar, sourceControl, chatClient, disposables)
+    registerCodyCommands(config, statusBar, sourceControl, chatClient, disposables)
     registerAuthCommands(authProvider, disposables)
     registerChatCommands(authProvider, disposables)
     disposables.push(...registerSidebarCommands())
-    disposables.push(...setUpCodyIgnore(configWatcher.get()))
+    disposables.push(setUpCodyIgnore(config))
     registerOtherCommands(disposables)
     if (isExtensionModeDevOrTest) {
         await registerTestCommands(context, authProvider, disposables)
     }
     registerDebugCommands(context, disposables)
-    registerUpgradeHandlers(configWatcher, authProvider, disposables)
+    registerUpgradeHandlers(config, authProvider, disposables)
     disposables.push(new CharactersLogger())
 
     // INC-267 do NOT await on this promise. This promise triggers
     // `vscode.window.showInformationMessage()`, which only resolves after the
     // user has clicked on "Setup". Awaiting on this promise will make the Cody
     // extension timeout during activation.
-    void showSetupNotification(configWatcher.get())
+    void showSetupNotification(config.value.auth)
 
     const [extensionClientDispose] = await Promise.all([
         platform.extensionClient.provide({ enterpriseContextFactory }),
         autocompleteSetup,
         openCtxSetup,
         tutorialSetup,
-        registerMinion(context, configWatcher, authProvider, symfRunner, disposables),
+        registerMinion(context, config, authProvider, symfRunner, disposables),
     ])
     disposables.push(extensionClientDispose)
 
@@ -311,30 +350,27 @@ const register = async (
 
 async function initializeSingletons(
     platform: PlatformContext,
-    authProvider: AuthProvider,
-    configWatcher: ConfigWatcher<ClientConfigurationWithAccessToken>,
-    isExtensionModeDevOrTest: boolean,
+    config: SyncObservable<ResolvedConfiguration>,
     disposables: vscode.Disposable[]
 ): Promise<void> {
-    // Allow the VS Code app's instance of ModelsService to use local storage to persist
-    // user's model choices
-    modelsService.setStorage(localStorage)
-    disposables.push(upstreamHealthProvider, contextFiltersProvider)
+    // TODO!(sqs): reflow these too
     commandControllerInit(platform.createCommandsProvider?.(), platform.extensionClient.capabilities)
     repoNameResolver.init(authProvider)
+    graphqlClient.setResolvedConfigurationObservable(config)
+
     disposables.push(
-        subscriptionDisposable(
-            configWatcher.changes.subscribe({
-                next: config => {
-                    graphqlClient.setConfig(config)
-                    void featureFlagProvider.refresh()
-                    contextFiltersProvider.init(repoNameResolver.getRepoNamesFromWorkspaceUri)
-                    void modelsService.onConfigChange(config)
-                    upstreamHealthProvider.onAuthChange(config)
-                },
-            })
+        setSingleton(upstreamHealthProvider, new UpstreamHealthProvider(config)),
+        setSingleton(featureFlagProvider, new FeatureFlagProvider(graphqlClient, config)),
+        setSingleton(modelsService, new ModelsService(localStorage, config)),
+        setSingleton(
+            contextFiltersProvider,
+            new ContextFiltersProvider(config, repoNameResolver.getRepoNamesFromWorkspaceUri)
         )
     )
+
+    if (platform.otherInitialization) {
+        disposables.push(platform.otherInitialization(config))
+    }
 }
 
 // Registers listeners to trigger parsing of visible documents
@@ -420,7 +456,7 @@ async function registerOtherCommands(disposables: vscode.Disposable[]) {
 }
 
 function registerCodyCommands(
-    config: ConfigWatcher<ClientConfiguration>,
+    config: SyncObservable<ResolvedConfiguration>,
     statusBar: CodyStatusBar,
     sourceControl: CodySourceControl,
     chatClient: ChatClient,
@@ -457,7 +493,7 @@ function registerCodyCommands(
     }
 
     // Initialize supercompletion provider if experimental feature is enabled
-    if (config.get().experimentalSupercompletions) {
+    if (config.value.configuration.experimentalSupercompletions) {
         disposables.push(new SupercompletionProvider({ statusBar, chat: chatClient }))
     }
 
@@ -528,7 +564,7 @@ function registerAuthCommands(authProvider: AuthProvider, disposables: vscode.Di
 }
 
 function registerUpgradeHandlers(
-    configWatcher: ConfigWatcher<ClientConfiguration>,
+    config: SyncObservable<ResolvedConfiguration>,
     authProvider: AuthProvider,
     disposables: vscode.Disposable[]
 ): void {
@@ -539,7 +575,7 @@ function registerUpgradeHandlers(
                 if (uri.path === '/app-done') {
                     // This is an old re-entrypoint from App that is a no-op now.
                 } else {
-                    authProvider.tokenCallbackHandler(uri, configWatcher.get().customHeaders)
+                    authProvider.tokenCallbackHandler(uri, config.value.configuration.customHeaders)
                 }
             },
         }),
@@ -619,7 +655,7 @@ async function tryRegisterTutorial(
  * the returned promise is awaited in parallel with other tasks.
  */
 function registerAutocomplete(
-    configWatcher: ConfigWatcher<ClientConfigurationWithEndpoint>,
+    config: SyncObservable<ResolvedConfiguration>,
     platform: PlatformContext,
     authProvider: AuthProvider,
     statusBar: CodyStatusBar,
@@ -641,14 +677,16 @@ function registerAutocomplete(
         dispose: disposeAutocomplete,
     })
 
-    const setupAutocomplete = (): Promise<void> => {
+    const setupAutocomplete = ({
+        configuration,
+        auth,
+    }: Pick<ResolvedConfiguration, 'configuration' | 'auth'>): Promise<void> => {
         setupAutocompleteQueue = setupAutocompleteQueue
             .then(async () => {
-                const config = await getFullConfig()
-                if (!config.autocomplete) {
+                if (!configuration.autocomplete) {
                     disposeAutocomplete()
                     if (
-                        config.isRunningInsideAgent &&
+                        configuration.isRunningInsideAgent &&
                         platform.extensionClient.capabilities?.completions !== 'none'
                     ) {
                         throw new Error(
@@ -665,14 +703,15 @@ function registerAutocomplete(
 
                 const autocompleteFeatureFlagChangeSubscriber = featureFlagProvider.onFeatureFlagChanged(
                     'cody-autocomplete',
-                    setupAutocomplete
+                    () => setupAutocomplete({ configuration, auth })
                 )
                 autocompleteDisposables.push({
                     dispose: autocompleteFeatureFlagChangeSubscriber,
                 })
                 autocompleteDisposables.push(
                     await createInlineCompletionItemProvider({
-                        config,
+                        config: configuration,
+                        auth: auth,
                         client: codeCompletionsClient,
                         statusBar,
                         authProvider: authProvider,
@@ -681,7 +720,8 @@ function registerAutocomplete(
                 )
                 autocompleteDisposables.push(
                     await createInlineCompletionItemFromMultipleProviders({
-                        config,
+                        config: configuration,
+                        auth: auth,
                         client: codeCompletionsClient,
                         statusBar,
                         authProvider: authProvider,
@@ -695,20 +735,18 @@ function registerAutocomplete(
             })
         return setupAutocompleteQueue
     }
-    disposables.push(
-        subscriptionDisposable(configWatcher.changes.subscribe({ next: setupAutocomplete }))
-    )
-    return setupAutocomplete().catch(() => {})
+    disposables.push(subscriptionDisposable(config.subscribe(config => setupAutocomplete(config))))
+    return setupAutocomplete(config.value).catch(() => {})
 }
 
 async function registerMinion(
     context: vscode.ExtensionContext,
-    config: ConfigWatcher<ClientConfiguration>,
+    config: SyncObservable<ResolvedConfiguration>,
     authProvider: AuthProvider,
     symfRunner: SymfRunner | undefined,
     disposables: vscode.Disposable[]
 ): Promise<void> {
-    if (config.get().experimentalMinionAnthropicKey) {
+    if (config.value.configuration.experimentalMinionAnthropicKey) {
         const minionOrchestrator = new MinionOrchestrator(context.extensionUri, authProvider, symfRunner)
         disposables.push(minionOrchestrator)
         disposables.push(
@@ -808,15 +846,4 @@ function registerChat(
     }
 
     return { chatsController }
-}
-
-/**
- * Create or update events infrastructure, using the new telemetryRecorder.
- */
-async function configureEventsInfra(
-    config: ClientConfigurationWithAccessToken,
-    isExtensionModeDevOrTest: boolean,
-    authProvider: AuthProvider
-): Promise<void> {
-    await createOrUpdateTelemetryRecorderProvider(config, isExtensionModeDevOrTest, authProvider)
 }

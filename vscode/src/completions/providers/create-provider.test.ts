@@ -1,11 +1,11 @@
 import {
+    AUTH_STATUS_FIXTURE,
     type AuthCredentials,
     type AuthStatus,
     type ClientConfiguration,
     type CodeCompletionsClient,
     type CodyLLMSiteConfiguration,
     type GraphQLAPIClientConfig,
-    defaultAuthStatus,
     graphqlClient,
 } from '@sourcegraph/cody-shared'
 import { beforeAll, describe, expect, it } from 'vitest'
@@ -35,9 +35,9 @@ const dummyCodeCompletionsClient: CodeCompletionsClient = {
     onConfigurationChange: () => undefined,
 }
 
-const dummyAuthStatus: AuthStatus = defaultAuthStatus
+const dummyAuthStatus: AuthStatus = AUTH_STATUS_FIXTURE
 
-graphqlClient.setConfig({} as unknown as GraphQLAPIClientConfig)
+graphqlClient.setResolvedConfigurationObservable({} as unknown as GraphQLAPIClientConfig)
 
 describe('createProviderConfig', () => {
     describe('if completions provider fields are defined in VSCode settings', () => {

@@ -30,13 +30,13 @@ export class SourcegraphBrowserCompletionsClient extends SourcegraphCompletionsC
 
         const abort = dependentAbortController(signal)
         const headersInstance = new Headers({
-            ...this.config.customHeaders,
+            ...this.config.value.auth.customHeaders,
             ...requestParams.customHeaders,
         } as HeadersInit)
         addCustomUserAgent(headersInstance)
         headersInstance.set('Content-Type', 'application/json; charset=utf-8')
-        if (this.config.accessToken) {
-            headersInstance.set('Authorization', `token ${this.config.accessToken}`)
+        if (this.config.value.auth.accessToken) {
+            headersInstance.set('Authorization', `token ${this.config.value.auth.accessToken}`)
         }
         const parameters = new URLSearchParams(globalThis.location.search)
         const trace = parameters.get('trace')

@@ -400,7 +400,7 @@ export class Agent extends MessageHandler implements ExtensionClient {
                 )
             }
             if (clientInfo.capabilities?.ignore === 'enabled') {
-                contextFiltersProvider.onContextFiltersChanged(() => {
+                contextFiltersProvider.instance!.onContextFiltersChanged(() => {
                     // Forward policy change notifications to the client.
                     this.notify('ignore/didChange', null)
                 })
@@ -1083,7 +1083,7 @@ export class Agent extends MessageHandler implements ExtensionClient {
 
         this.registerAuthenticatedRequest('editTask/retry', params => {
             const instruction = PromptString.unsafe_fromUserQuery(params.instruction)
-            const models = getModelOptionItems(modelsService.getModels(ModelUsage.Edit), true)
+            const models = getModelOptionItems(modelsService.instance!.getModels(ModelUsage.Edit), true)
             const previousInput: QuickPickInput = {
                 instruction: instruction,
                 userContextFiles: [],
@@ -1194,7 +1194,7 @@ export class Agent extends MessageHandler implements ExtensionClient {
         // TODO: JetBrains no longer uses this, consider deleting it.
         this.registerAuthenticatedRequest('chat/restore', async ({ modelID, messages, chatID }) => {
             const authStatus = await vscode.commands.executeCommand<AuthStatus>('cody.auth.status')
-            modelID ??= modelsService.getDefaultChatModel() ?? ''
+            modelID ??= modelsService.instance!.getDefaultChatModel() ?? ''
             const chatMessages = messages?.map(PromptString.unsafe_deserializeChatMessage) ?? []
             const chatModel = new ChatModel(modelID, chatID, chatMessages)
             await chatHistory.saveChat(authStatus, chatModel.toSerializedChatTranscript())
@@ -1207,7 +1207,7 @@ export class Agent extends MessageHandler implements ExtensionClient {
         })
 
         this.registerAuthenticatedRequest('chat/models', async ({ modelUsage }) => {
-            const models = modelsService.getModels(modelUsage)
+            const models = modelsService.instance!.getModels(modelUsage)
             return { models }
         })
 
@@ -1332,7 +1332,7 @@ export class Agent extends MessageHandler implements ExtensionClient {
         )
 
         this.registerAuthenticatedRequest('featureFlags/getFeatureFlag', async ({ flagName }) => {
-            return featureFlagProvider.evaluateFeatureFlag(
+            return featureFlagProvider.instance!.evaluateFeatureFlag(
                 FeatureFlag[flagName as keyof typeof FeatureFlag]
             )
         })
@@ -1376,14 +1376,14 @@ export class Agent extends MessageHandler implements ExtensionClient {
 
         this.registerAuthenticatedRequest('ignore/test', async ({ uri: uriString }) => {
             const uri = vscode.Uri.parse(uriString)
-            const isIgnored = await contextFiltersProvider.isUriIgnored(uri)
+            const isIgnored = await contextFiltersProvider.instance!.isUriIgnored(uri)
             return {
                 policy: isIgnored ? 'ignore' : 'use',
             } as const
         })
 
         this.registerAuthenticatedRequest('testing/ignore/overridePolicy', async contextFilters => {
-            contextFiltersProvider.setTestingContextFilters(contextFilters)
+            contextFiltersProvider.instance!.setTestingContextFilters(contextFilters)
             return null
         })
     }

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { type AuthStatus, defaultAuthStatus } from '../auth/types'
+import { AUTH_STATUS_FIXTURE, type AuthStatus } from '../auth/types'
 import {
     Model,
     type ModelCategory,
@@ -16,23 +16,29 @@ import { ModelUsage } from './types'
 
 describe('Model Provider', () => {
     const dotcomUserAuthStatus: AuthStatus = {
-        ...defaultAuthStatus,
+        ...AUTH_STATUS_FIXTURE,
         endpoint: 'https://sourcegraph.example.com',
         authenticated: true,
         isDotCom: true,
     }
 
     const enterpriseAuthStatus: AuthStatus = {
-        ...defaultAuthStatus,
+        ...AUTH_STATUS_FIXTURE,
         endpoint: 'https://sourcegraph.example.com',
         authenticated: true,
         isDotCom: false,
     }
 
+    const MOCK_STORAGE: ConstructorParameters<typeof ModelsService>[0] = {
+        get: () => null,
+        set: () => Promise.resolve(undefined),
+        delete: () => Promise.resolve(undefined),
+    }
+
     // Reset service
-    let modelsService = new ModelsService()
+    let modelsService = new ModelsService(MOCK_STORAGE)
     beforeEach(() => {
-        modelsService = new ModelsService()
+        modelsService = new ModelsService(MOCK_STORAGE)
     })
 
     describe('getContextWindowByID', () => {
@@ -248,7 +254,7 @@ describe('Model Provider', () => {
 
         beforeEach(async () => {
             storage = new TestStorage()
-            modelsService.setStorage(storage)
+            modelsService = new ModelsService(storage)
             modelsService.setAuthStatus(enterpriseAuthStatus)
             await modelsService.setServerSentModels(SERVER_MODELS)
         })

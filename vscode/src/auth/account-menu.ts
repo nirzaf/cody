@@ -7,37 +7,33 @@ export enum AccountMenuOptions {
     Switch = 'Switch Account...',
 }
 
-export async function openAccountMenu(authStatus: AuthStatus): Promise<AccountMenuOptions | undefined> {
-    if (!authStatus.authenticated || !authStatus.endpoint) {
+export async function openAccountMenu(
+    authStatus: AuthStatus | null
+): Promise<AccountMenuOptions | undefined> {
+    if (!authStatus?.user) {
+        // TODO!(sqs): what to show here?
         return
     }
 
-    const isOffline = authStatus.isOfflineMode
-    const isDotComInstance = isDotCom(authStatus.endpoint) && !isOffline
+    const isDotComInstance = isDotCom(authStatus.endpoint)
 
-    const displayName = authStatus.displayName || authStatus.username
-    const email = authStatus.primaryEmail || 'No Email'
-    const username = authStatus.username || authStatus.displayName
+    const user = authStatus.user
+    const displayName = user.displayName || user.username
+    const email = user.primaryEmail || 'No Email'
+    const username = user.username || user.displayName
     const enterpriseDetail = `Enterprise Instance:\n${authStatus.endpoint}`
-    const offlineDetail = 'Use Cody offline with Ollama'
 
     const options = isDotComInstance ? [AccountMenuOptions.Manage] : []
     options.push(AccountMenuOptions.Switch, AccountMenuOptions.SignOut)
 
     const messageOptions = {
         modal: true,
-        detail: isOffline
-            ? offlineDetail
-            : isDotComInstance
-              ? 'Using Cody on Sourcegraph.com'
-              : enterpriseDetail,
+        detail: isDotComInstance ? 'Using Cody on Sourcegraph.com' : enterpriseDetail,
     }
 
-    const online = isDotComInstance
+    const message = isDotComInstance
         ? `Signed in as ${displayName} (${email})`
         : `Signed in as @${username}`
-    const offline = 'Offline Mode'
-    const message = isOffline ? offline : online
 
     const option = await vscode.window.showInformationMessage(message, messageOptions, ...options)
 

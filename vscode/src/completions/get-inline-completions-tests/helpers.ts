@@ -3,13 +3,13 @@ import { isEqual } from 'lodash'
 import { expect } from 'vitest'
 
 import {
+    AUTH_STATUS_FIXTURE,
     type AuthStatus,
     type ClientConfiguration,
     type CodeCompletionsClient,
     type CompletionParameters,
     type CompletionResponse,
     CompletionStopReason,
-    defaultAuthStatus,
     testFileUri,
 } from '@sourcegraph/cody-shared'
 
@@ -52,7 +52,7 @@ export const T = '\t'
 
 const URI_FIXTURE = testFileUri('test.ts')
 
-const dummyAuthStatus: AuthStatus = defaultAuthStatus
+const dummyAuthStatus: AuthStatus = AUTH_STATUS_FIXTURE
 
 type Params = Partial<Omit<InlineCompletionsParams, 'document' | 'position' | 'docContext'>> & {
     languageId?: string

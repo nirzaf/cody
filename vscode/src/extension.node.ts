@@ -1,6 +1,11 @@
 // Sentry should be imported first
 import { NodeSentryService } from './services/sentry/sentry.node'
 
+import {
+    type ResolvedConfiguration,
+    type SyncObservable,
+    subscriptionDisposable,
+} from '@sourcegraph/cody-shared'
 import * as vscode from 'vscode'
 import { startTokenReceiver } from './auth/token-receiver'
 import { CommandsProvider } from './commands/services/provider'
@@ -11,7 +16,6 @@ import { type ExtensionClient, defaultVSCodeExtensionClient } from './extension-
 import { activate as activateCommon } from './extension.common'
 import { initializeNetworkAgent, setCustomAgent } from './fetch.node'
 import {
-    type LocalEmbeddingsConfig,
     type LocalEmbeddingsController,
     createLocalEmbeddingsController,
 } from './local-context/local-embeddings'
@@ -53,7 +57,7 @@ export function activate(
 
     return activateCommon(context, {
         createLocalEmbeddingsController: isLocalEmbeddingsEnabled
-            ? (config: LocalEmbeddingsConfig): Promise<LocalEmbeddingsController> =>
+            ? (config: SyncObservable<ResolvedConfiguration>): Promise<LocalEmbeddingsController> =>
                   createLocalEmbeddingsController(context, config)
             : undefined,
         createCompletionsClient: (...args) => new SourcegraphNodeCompletionsClient(...args),
@@ -65,7 +69,11 @@ export function activate(
             ? (...args) => new OpenTelemetryService(...args)
             : undefined,
         startTokenReceiver: (...args) => startTokenReceiver(...args),
-        onConfigurationChange: setCustomAgent,
+        otherInitialization: config => {
+            return subscriptionDisposable(
+                config.subscribe(config => setCustomAgent(config.configuration))
+            )
+        },
         extensionClient,
     })
 }

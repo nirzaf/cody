@@ -6,11 +6,12 @@ import {
     type CompletionResponse,
     type CompletionResponseGenerator,
     CompletionStopReason,
-    type CompletionsClientConfig,
     FeatureFlag,
     NetworkError,
     RateLimitError,
+    type ResolvedConfiguration,
     type SerializedCodeCompletionsParams,
+    type SyncObservable,
     TracedError,
     addTraceparent,
     createSSEIterator,
@@ -36,7 +37,7 @@ import type {
  * Access the code completion LLM APIs via a Sourcegraph server instance.
  */
 export function createClient(
-    config: CompletionsClientConfig,
+    config: SyncObservable<Pick<ResolvedConfiguration, 'auth'>>,
     logger?: CompletionLogger
 ): CodeCompletionsClient {
     function complete(
@@ -45,7 +46,10 @@ export function createClient(
         providerOptions: CodeCompletionProviderOptions
     ): CompletionResponseGenerator {
         const query = new URLSearchParams(getClientInfoParams())
-        const url = new URL(`/.api/completions/code?${query.toString()}`, config.serverEndpoint).href
+        const url = new URL(
+            `/.api/completions/code?${query.toString()}`,
+            config.value.auth.serverEndpoint
+        ).href
         const log = logger?.startCompletion(params, url)
         const { signal } = abortController
 
@@ -57,7 +61,7 @@ export function createClient(
                 )
 
                 const headers = new Headers({
-                    ...config.customHeaders,
+                    ...config.value.auth.customHeaders,
                     ...providerOptions?.customHeaders,
                 })
 
@@ -65,8 +69,8 @@ export function createClient(
                 // c.f. https://github.com/microsoft/vscode/issues/173861
                 headers.set('Connection', 'keep-alive')
                 headers.set('Content-Type', 'application/json; charset=utf-8')
-                if (config.accessToken) {
-                    headers.set('Authorization', `token ${config.accessToken}`)
+                if (config.value.auth.accessToken) {
+                    headers.set('Authorization', `token ${config.value.auth.accessToken}`)
                 }
 
                 if (tracingFlagEnabled) {
@@ -254,9 +258,6 @@ export function createClient(
     return {
         complete,
         logger,
-        onConfigurationChange(newConfig) {
-            config = newConfig
-        },
     }
 }
 

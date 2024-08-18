@@ -1,6 +1,6 @@
 // Add anything else here that needs to be used outside of this library.
 
-export { Model, modelsService } from './models'
+export { Model, ModelsService, modelsService } from './models'
 export {
     type EditModel,
     type EditProvider,
@@ -329,3 +329,5 @@ export {
     createMessageAPIForExtension,
 } from './misc/rpc/rpc'
 export * from './misc/observable'
+export * from './configuration/resolver'
+export * from './singletons'

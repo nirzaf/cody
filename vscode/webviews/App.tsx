@@ -193,12 +193,13 @@ export const App: React.FunctionComponent<{ vscodeAPI: VSCodeWrapper }> = ({ vsc
 
     return (
         <ComposedWrappers wrappers={wrappers}>
-            {config.authStatus.showNetworkError && (
-                <ConnectionIssuesPage
-                    configuredEndpoint={config.authStatus.endpoint}
-                    vscodeAPI={vscodeAPI}
-                />
-            )}
+            {config.authStatus.ephemeralConnectivityStatus === 'error' ||
+                (config.authStatus.ephemeralConnectivityStatus === 'offline' && (
+                    <ConnectionIssuesPage
+                        configuredEndpoint={config.authStatus.endpoint}
+                        vscodeAPI={vscodeAPI}
+                    />
+                ))}
             {view === View.Login ? (
                 <div className={styles.outerContainer}>
                     <LoginSimplified

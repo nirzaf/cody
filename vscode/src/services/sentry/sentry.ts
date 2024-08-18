@@ -2,9 +2,10 @@ import type { init as browserInit } from '@sentry/browser'
 import type { init as nodeInit } from '@sentry/node'
 
 import {
-    type AuthCredentials,
-    type ClientConfiguration,
     NetworkError,
+    type ResolvedConfiguration,
+    type SyncObservable,
+    type Unsubscribable,
     isAbortError,
     isAuthError,
     isDotCom,
@@ -20,63 +21,62 @@ const SENTRY_DSN = 'https://f565373301c9c7ef18448a1c60dfde8d@o19358.ingest.sentr
 export type SentryOptions = NonNullable<Parameters<typeof nodeInit | typeof browserInit>[0]>
 
 export abstract class SentryService {
-    constructor(
-        protected config: Pick<ClientConfiguration, 'isRunningInsideAgent' | 'agentIDE'>,
-        private auth: AuthCredentials
-    ) {
-        this.prepareReconfigure()
-    }
+    private configSubscription: Unsubscribable
 
-    public onAuthChange(newAuth: AuthCredentials): void {
-        this.auth = newAuth
-        this.prepareReconfigure()
-    }
+    constructor(protected config: SyncObservable<ResolvedConfiguration>) {
+        this.configSubscription = config.subscribe(({ configuration, auth }) => {
+            try {
+                const isProd = process.env.NODE_ENV === 'production'
 
-    private prepareReconfigure(): void {
-        try {
-            const isProd = process.env.NODE_ENV === 'production'
+                // Used to enable Sentry reporting in the development environment.
+                const isSentryEnabled = process.env.ENABLE_SENTRY === 'true'
+                if (!isProd && !isSentryEnabled) {
+                    return
+                }
 
-            // Used to enable Sentry reporting in the development environment.
-            const isSentryEnabled = process.env.ENABLE_SENTRY === 'true'
-            if (!isProd && !isSentryEnabled) {
-                return
+                const options: SentryOptions = {
+                    dsn: SENTRY_DSN,
+                    release: version,
+                    sampleRate: 0.05, // 5% of errors are sent to Sentry
+                    environment: configuration.isRunningInsideAgent
+                        ? 'agent'
+                        : typeof process === 'undefined'
+                          ? 'vscode-web'
+                          : 'vscode-node',
+
+                    // In dev mode, have Sentry log extended debug information to the console.
+                    debug: !isProd,
+
+                    // Only send errors when connected to dotcom in the production build.
+                    beforeSend: (event, hint) => {
+                        if (
+                            isProd &&
+                            isDotCom(auth.serverEndpoint) &&
+                            shouldErrorBeReported(
+                                hint.originalException,
+                                !!configuration.isRunningInsideAgent
+                            )
+                        ) {
+                            return event
+                        }
+
+                        return null
+                    },
+                }
+
+                this.reconfigure(options)
+            } catch (error) {
+                // We don't want to crash the extension host or VS Code if Sentry fails to load.
+                console.error('Failed to initialize Sentry', error)
             }
-
-            const options: SentryOptions = {
-                dsn: SENTRY_DSN,
-                release: version,
-                sampleRate: 0.05, // 5% of errors are sent to Sentry
-                environment: this.config.isRunningInsideAgent
-                    ? 'agent'
-                    : typeof process === 'undefined'
-                      ? 'vscode-web'
-                      : 'vscode-node',
-
-                // In dev mode, have Sentry log extended debug information to the console.
-                debug: !isProd,
-
-                // Only send errors when connected to dotcom in the production build.
-                beforeSend: (event, hint) => {
-                    if (
-                        isProd &&
-                        isDotCom(this.auth.serverEndpoint) &&
-                        shouldErrorBeReported(hint.originalException, !!this.config.isRunningInsideAgent)
-                    ) {
-                        return event
-                    }
-
-                    return null
-                },
-            }
-
-            this.reconfigure(options)
-        } catch (error) {
-            // We don't want to crash the extension host or VS Code if Sentry fails to load.
-            console.error('Failed to initialize Sentry', error)
-        }
+        })
     }
 
     protected abstract reconfigure(options: Parameters<typeof nodeInit | typeof browserInit>[0]): void
+
+    public dispose(): void {
+        this.configSubscription.unsubscribe()
+    }
 }
 
 export function shouldErrorBeReported(error: unknown, insideAgent: boolean): boolean {

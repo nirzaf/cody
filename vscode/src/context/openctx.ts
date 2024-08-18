@@ -2,15 +2,18 @@ import {
     type AuthStatus,
     type ClientConfiguration,
     CodyIDE,
-    type ConfigWatcher,
     FeatureFlag,
     GIT_OPENCTX_PROVIDER_URI,
+    type ResolvedConfiguration,
+    type SyncObservable,
     WEB_PROVIDER_URI,
     combineLatest,
+    distinctUntilChanged,
     featureFlagProvider,
     graphqlClient,
     isError,
     logError,
+    pluck,
     setOpenCtx,
 } from '@sourcegraph/cody-shared'
 import * as vscode from 'vscode'
@@ -31,18 +34,20 @@ import { createWebProvider } from './openctx/web'
 
 export async function exposeOpenCtxClient(
     context: Pick<vscode.ExtensionContext, 'extension' | 'secrets'>,
-    config: ConfigWatcher<ClientConfiguration>,
+    config: SyncObservable<ResolvedConfiguration>,
     authProvider: AuthProvider,
     createOpenCtxController: typeof createController | undefined
 ): Promise<void> {
     await warnIfOpenCtxExtensionConflict()
     try {
-        const isCodyWeb = config.get().agentIDE === CodyIDE.Web
+        const isCodyWeb = config.value.configuration.agentIDE === CodyIDE.Web
         const createController =
             createOpenCtxController ?? (await import('@openctx/vscode-lib')).createController
 
+        // TODO!(sqs): make reactive, dont read from config.value
+
         // Enable fetching of openctx configuration from Sourcegraph instance
-        const mergeConfiguration = config.get().experimentalNoodle
+        const mergeConfiguration = config.value.configuration.experimentalNoodle
             ? getMergeConfigurationFunction()
             : undefined
 
@@ -53,7 +58,10 @@ export async function exposeOpenCtxClient(
             features: isCodyWeb ? {} : { annotations: true, statusBar: true },
             providers: isCodyWeb
                 ? Observable.of(getCodyWebOpenCtxProviders())
-                : getOpenCtxProviders(config.changes, authProvider.changes),
+                : getOpenCtxProviders(
+                      config.pipe(pluck('configuration'), distinctUntilChanged()),
+                      authProvider.changes
+                  ),
             mergeConfiguration,
         })
         setOpenCtx({

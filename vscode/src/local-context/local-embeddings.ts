@@ -13,9 +13,14 @@ import {
     type LocalEmbeddingsFetcher,
     type LocalEmbeddingsProvider,
     type PromptString,
+    type ResolvedConfiguration,
+    type SyncObservable,
+    type Unsubscribable,
+    distinctUntilChanged,
     featureFlagProvider,
     isDotCom,
     isFileURI,
+    pluck,
     recordErrorToSpan,
     telemetryRecorder,
     uriBasename,
@@ -30,10 +35,10 @@ import { CodyEngineService } from './cody-engine'
 
 export async function createLocalEmbeddingsController(
     context: vscode.ExtensionContext,
-    config: LocalEmbeddingsConfig
+    config: SyncObservable<ResolvedConfiguration>
 ): Promise<LocalEmbeddingsController> {
     const modelConfig =
-        config.testingModelConfig ||
+        config.value.configuration.testingModelConfig ||
         (await featureFlagProvider.evaluateFeatureFlag(FeatureFlag.CodyEmbeddingsGenerateMetadata))
             ? sourcegraphMetadataModelConfig
             : sourcegraphModelConfig
@@ -127,9 +132,11 @@ export class LocalEmbeddingsController
     // or the first index for a repository comes online.
     private readonly changeEmitter = new vscode.EventEmitter<LocalEmbeddingsController>()
 
+    private configSubscription: Unsubscribable
+
     constructor(
         private readonly context: vscode.ExtensionContext,
-        config: LocalEmbeddingsConfig,
+        config: SyncObservable<ResolvedConfiguration>,
         private readonly modelConfig: EmbeddingsModelConfig,
         private readonly autoIndexingEnabled: boolean
     ) {
@@ -142,8 +149,12 @@ export class LocalEmbeddingsController
         )
 
         // Pick up the initial access token, and whether the account is dotcom.
-        this.accessToken = config.auth.accessToken || undefined
-        this.endpointIsDotcom = isDotCom(config.auth.serverEndpoint)
+        const initialAuth = config.value.auth
+        this.accessToken = initialAuth.accessToken || undefined
+        this.endpointIsDotcom = isDotCom(initialAuth.serverEndpoint)
+        this.configSubscription = config
+            .pipe(pluck('auth'), distinctUntilChanged())
+            .subscribe(auth => this.setAuth(auth))
     }
 
     public dispose(): void {
@@ -151,6 +162,7 @@ export class LocalEmbeddingsController
             disposable.dispose()
         }
         this.statusBar?.dispose()
+        this.configSubscription.unsubscribe()
     }
 
     public get onChange(): vscode.Event<LocalEmbeddingsController> {
@@ -180,7 +192,7 @@ export class LocalEmbeddingsController
         })
     }
 
-    public async setAuth(auth: AuthCredentials): Promise<void> {
+    private async setAuth(auth: AuthCredentials): Promise<void> {
         const endpointIsDotcom = isDotCom(auth.serverEndpoint)
         logDebug(
             'LocalEmbeddingsController',

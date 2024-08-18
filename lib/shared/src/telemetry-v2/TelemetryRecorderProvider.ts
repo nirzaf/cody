@@ -8,12 +8,7 @@ import {
 } from '@sourcegraph/telemetry'
 import { TimestampTelemetryProcessor } from '@sourcegraph/telemetry/dist/processors/timestamp'
 
-import {
-    CONTEXT_SELECTION_ID,
-    type ClientConfiguration,
-    type ClientConfigurationWithAccessToken,
-    type CodyIDE,
-} from '../configuration'
+import { CONTEXT_SELECTION_ID, type ClientConfiguration, type CodyIDE } from '../configuration'
 import type { LogEventMode } from '../sourcegraph-api/graphql/client'
 import { GraphQLTelemetryExporter } from '../sourcegraph-api/telemetry/GraphQLTelemetryExporter'
 import { MockServerTelemetryExporter } from '../sourcegraph-api/telemetry/MockServerTelemetryExporter'
@@ -62,7 +57,7 @@ export class TelemetryRecorderProvider extends BaseTelemetryRecorderProvider<
 > {
     constructor(
         extensionDetails: ExtensionDetails,
-        config: ClientConfigurationWithAccessToken,
+        config: ClientConfiguration,
         authStatusProvider: AuthStatusProvider,
         anonymousUserID: string,
         legacyBackcompatLogEventMode: LogEventMode

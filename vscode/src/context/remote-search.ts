@@ -29,9 +29,11 @@ export class RemoteSearch implements ContextStatusProvider {
     private disposeOnContextFilterChanged: () => void
 
     constructor(private completions: SourcegraphCompletionsClient) {
-        this.disposeOnContextFilterChanged = contextFiltersProvider.onContextFiltersChanged(() => {
-            this.statusChangedEmitter.fire(this)
-        })
+        this.disposeOnContextFilterChanged = contextFiltersProvider.onContextFiltersChanged(
+            () => {
+                this.statusChangedEmitter.fire(this)
+            }
+        )
     }
 
     private statusChangedEmitter = new vscode.EventEmitter<ContextStatusProvider>()

@@ -1,54 +1,5 @@
 import semver from 'semver'
 
-import { type AuthStatus, offlineModeAuthStatus, unauthenticatedStatus } from '@sourcegraph/cody-shared'
-
-export type NewAuthStatusOptions = Omit<
-    AuthStatus,
-    | 'isLoggedIn'
-    | 'codyApiVersion'
-    | 'showInvalidAccessToken'
-    | 'showInvalidAccessTokenError'
-    | 'primaryEmail'
-> & {
-    primaryEmail?:
-        | string
-        | {
-              email: string
-          }
-        | null
-}
-
-export function newAuthStatus(options: NewAuthStatusOptions): AuthStatus {
-    const {
-        isOfflineMode,
-        endpoint,
-        siteHasCodyEnabled,
-        username,
-        authenticated,
-        isDotCom,
-        siteVersion,
-    } = options
-
-    if (isOfflineMode) {
-        return { ...offlineModeAuthStatus, endpoint, username }
-    }
-    if (!authenticated) {
-        return { ...unauthenticatedStatus, endpoint }
-    }
-    const primaryEmail =
-        typeof options.primaryEmail === 'string'
-            ? options.primaryEmail
-            : options.primaryEmail?.email || null
-    return {
-        ...options,
-        showInvalidAccessTokenError: false,
-        endpoint,
-        primaryEmail,
-        isLoggedIn: siteHasCodyEnabled && authenticated,
-        codyApiVersion: inferCodyApiVersion(siteVersion, isDotCom),
-    }
-}
-
 /**
  * Counts the number of lines and characters in code blocks in a given string.
  * @param text - The string to search for code blocks.
@@ -76,7 +27,7 @@ export const countGeneratedCode = (text: string): { lineCount: number; charCount
     return count
 }
 
-function inferCodyApiVersion(version: string, isDotCom: boolean): 0 | 1 {
+export function inferCodyApiVersion(version: string, isDotCom: boolean): 0 | 1 {
     const parsedVersion = semver.valid(version)
     // DotCom is always recent
     if (isDotCom) {
