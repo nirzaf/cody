@@ -23,7 +23,7 @@ export const Image: Story = {
             username: 'sqs',
             avatarURL: 'https://avatars.githubusercontent.com/u/1976',
             endpoint: '',
-            primaryEmail: '',
+            primaryEmail: null,
         },
     },
 }
@@ -34,7 +34,7 @@ export const Text1Letter: Story = {
             username: 'sqs',
             avatarURL: '',
             endpoint: '',
-            primaryEmail: '',
+            primaryEmail: null,
         },
     },
 }
@@ -46,7 +46,7 @@ export const Text2Letters: Story = {
             displayName: 'Quinn Slack',
             avatarURL: '',
             endpoint: '',
-            primaryEmail: '',
+            primaryEmail: null,
         },
     },
 }

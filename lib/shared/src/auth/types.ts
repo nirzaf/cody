@@ -16,7 +16,7 @@ export interface AuthStatus {
     codyApiVersion: number
     configOverwrites?: CodyLLMSiteConfiguration
     showNetworkError?: boolean
-    primaryEmail: string
+    primaryEmail: string | null
     displayName?: string
     avatarURL: string
 
@@ -36,7 +36,7 @@ export const defaultAuthStatus: AuthStatus = {
     siteHasCodyEnabled: false,
     siteVersion: '',
     username: '',
-    primaryEmail: '',
+    primaryEmail: null,
     displayName: '',
     avatarURL: '',
     codyApiVersion: 0,
@@ -51,7 +51,7 @@ export const unauthenticatedStatus: AuthStatus = {
     siteHasCodyEnabled: false,
     siteVersion: '',
     username: '',
-    primaryEmail: '',
+    primaryEmail: null,
     displayName: '',
     avatarURL: '',
     codyApiVersion: 0,
@@ -66,7 +66,7 @@ export const networkErrorAuthStatus: Omit<AuthStatus, 'endpoint'> = {
     siteHasCodyEnabled: false,
     siteVersion: '',
     username: '',
-    primaryEmail: '',
+    primaryEmail: null,
     displayName: '',
     avatarURL: '',
     codyApiVersion: 0,
@@ -82,7 +82,7 @@ export const offlineModeAuthStatus: AuthStatus = {
     siteHasCodyEnabled: true,
     siteVersion: '',
     username: 'offline',
-    primaryEmail: '',
+    primaryEmail: null,
     displayName: '',
     avatarURL: '',
     codyApiVersion: 0,

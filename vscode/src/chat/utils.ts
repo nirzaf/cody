@@ -38,7 +38,7 @@ export function newAuthStatus(options: NewAuthStatusOptions): AuthStatus {
     const primaryEmail =
         typeof options.primaryEmail === 'string'
             ? options.primaryEmail
-            : options.primaryEmail?.email || ''
+            : options.primaryEmail?.email || null
     return {
         ...options,
         showInvalidAccessTokenError: false,
