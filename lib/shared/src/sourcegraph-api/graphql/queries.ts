@@ -29,7 +29,6 @@ export const CURRENT_USER_INFO_QUERY = `
 query CurrentUser {
     currentUser {
         id
-        hasVerifiedEmail
         displayName
         username
         avatarURL

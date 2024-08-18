@@ -38,8 +38,6 @@ const DUMMY_AUTH_STATUS: AuthStatus = {
     isLoggedIn: true,
     showInvalidAccessTokenError: false,
     authenticated: true,
-    hasVerifiedEmail: true,
-    requiresVerifiedEmail: true,
     siteHasCodyEnabled: true,
     siteVersion: '1234',
     primaryEmail: 'heisenberg@exmaple.com',

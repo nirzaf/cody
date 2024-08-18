@@ -159,7 +159,6 @@ interface CurrentUserIdResponse {
 interface CurrentUserInfoResponse {
     currentUser: {
         id: string
-        hasVerifiedEmail: boolean
         displayName?: string
         username: string
         avatarURL: string
@@ -483,7 +482,6 @@ export interface CurrentUserCodySubscription {
 
 export interface CurrentUserInfo {
     id: string
-    hasVerifiedEmail: boolean
     username: string
     displayName?: string
     avatarURL: string

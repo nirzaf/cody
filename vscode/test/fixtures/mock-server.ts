@@ -395,7 +395,6 @@ export class MockServer {
                                 data: {
                                     currentUser: {
                                         id: "u",
-                                        hasVerifiedEmail: true,
                                         displayName: "Person",
                                         username: "person",
                                         avatarURL: "",

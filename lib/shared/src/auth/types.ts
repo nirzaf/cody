@@ -11,8 +11,6 @@ export interface AuthStatus {
     isLoggedIn: boolean
     showInvalidAccessTokenError: boolean
     authenticated: boolean
-    hasVerifiedEmail: boolean
-    requiresVerifiedEmail: boolean
     siteHasCodyEnabled: boolean
     siteVersion: string
     codyApiVersion: number
@@ -43,8 +41,6 @@ export const defaultAuthStatus: AuthStatus = {
     isLoggedIn: false,
     showInvalidAccessTokenError: false,
     authenticated: false,
-    hasVerifiedEmail: false,
-    requiresVerifiedEmail: false,
     siteHasCodyEnabled: false,
     siteVersion: '',
     userCanUpgrade: false,
@@ -61,8 +57,6 @@ export const unauthenticatedStatus: AuthStatus = {
     isLoggedIn: false,
     showInvalidAccessTokenError: true,
     authenticated: false,
-    hasVerifiedEmail: false,
-    requiresVerifiedEmail: false,
     siteHasCodyEnabled: false,
     siteVersion: '',
     userCanUpgrade: false,
@@ -78,9 +72,7 @@ export const networkErrorAuthStatus: Omit<AuthStatus, 'endpoint'> = {
     showInvalidAccessTokenError: false,
     authenticated: false,
     isLoggedIn: false,
-    hasVerifiedEmail: false,
     showNetworkError: true,
-    requiresVerifiedEmail: false,
     siteHasCodyEnabled: false,
     siteVersion: '',
     userCanUpgrade: false,
@@ -98,8 +90,6 @@ export const offlineModeAuthStatus: AuthStatus = {
     isOfflineMode: true,
     showInvalidAccessTokenError: false,
     authenticated: true,
-    hasVerifiedEmail: true,
-    requiresVerifiedEmail: true,
     siteHasCodyEnabled: true,
     siteVersion: '',
     userCanUpgrade: false,

@@ -8,7 +8,6 @@ describe('validateAuthStatus', () => {
         ...defaultAuthStatus,
         siteVersion: '',
         isDotCom: true,
-        hasVerifiedEmail: true,
         siteHasCodyEnabled: true,
         authenticated: true,
         endpoint: '',
@@ -25,7 +24,6 @@ describe('validateAuthStatus', () => {
             newAuthStatus({
                 ...options,
                 authenticated: false,
-                hasVerifiedEmail: false,
             })
         ).toEqual(expected)
     })
@@ -34,9 +32,7 @@ describe('validateAuthStatus', () => {
         const expected = {
             ...options,
             authenticated: true,
-            hasVerifiedEmail: true,
             showInvalidAccessTokenError: false,
-            requiresVerifiedEmail: true,
             siteHasCodyEnabled: true,
             isLoggedIn: true,
             codyApiVersion: 1,
@@ -48,15 +44,12 @@ describe('validateAuthStatus', () => {
         const expected = {
             ...options,
             authenticated: true,
-            hasVerifiedEmail: false,
-            requiresVerifiedEmail: true,
             siteHasCodyEnabled: true,
             codyApiVersion: 1,
         }
         expect(
             newAuthStatus({
                 ...options,
-                hasVerifiedEmail: false,
             })
         ).toEqual(expected)
     })
@@ -66,7 +59,6 @@ describe('validateAuthStatus', () => {
             ...options,
             authenticated: true,
             siteHasCodyEnabled: true,
-            hasVerifiedEmail: false,
             isLoggedIn: true,
             isDotCom: false,
             codyApiVersion: 1,
@@ -75,7 +67,6 @@ describe('validateAuthStatus', () => {
             newAuthStatus({
                 ...options,
                 isDotCom: false,
-                hasVerifiedEmail: false,
             })
         ).toEqual(expected)
     })
@@ -87,7 +78,6 @@ describe('validateAuthStatus', () => {
                 ...options,
                 isDotCom: false,
                 authenticated: false,
-                hasVerifiedEmail: false,
                 siteHasCodyEnabled: false,
             })
         ).toEqual(expected)
@@ -98,7 +88,6 @@ describe('validateAuthStatus', () => {
             ...options,
             authenticated: true,
             siteHasCodyEnabled: false,
-            hasVerifiedEmail: false,
             isDotCom: false,
             codyApiVersion: 1,
         }
@@ -107,7 +96,6 @@ describe('validateAuthStatus', () => {
                 ...options,
                 isDotCom: false,
                 siteHasCodyEnabled: false,
-                hasVerifiedEmail: false,
             })
         ).toEqual(expected)
     })
@@ -119,7 +107,6 @@ describe('validateAuthStatus', () => {
                 ...options,
                 isDotCom: false,
                 authenticated: false,
-                hasVerifiedEmail: false,
                 siteHasCodyEnabled: false,
             })
         ).toEqual(expected)
@@ -134,7 +121,6 @@ describe('validateAuthStatus', () => {
             isDotCom: false,
             displayName: '',
             primaryEmail: '',
-            hasVerifiedEmail: false,
             codyApiVersion: 1,
         }
         expect(
@@ -152,7 +138,6 @@ describe('validateAuthStatus', () => {
             ...options,
             authenticated: true,
             siteHasCodyEnabled: true,
-            hasVerifiedEmail: false,
             isLoggedIn: true,
             isDotCom: false,
             siteVersion: '5.2.0',

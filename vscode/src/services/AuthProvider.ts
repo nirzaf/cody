@@ -264,7 +264,6 @@ export class AuthProvider implements AuthStatusProvider, vscode.Disposable {
                 siteVersion,
                 configOverwrites,
                 authenticated: true,
-                hasVerifiedEmail: false,
                 siteHasCodyEnabled,
                 userCanUpgrade: false,
             })

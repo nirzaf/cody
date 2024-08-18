@@ -45,7 +45,6 @@ describe('TreeViewProvider', () => {
                 endpoint: endpoint.toString(),
                 isDotCom: isDotCom(endpoint.toString()),
                 authenticated: true,
-                hasVerifiedEmail: true,
                 siteHasCodyEnabled: true,
                 userCanUpgrade: upgradeAvailable,
                 siteVersion: '',

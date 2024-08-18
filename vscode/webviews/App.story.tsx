@@ -34,8 +34,6 @@ const dummyVSCodeAPI: VSCodeWrapper = {
                 avatarURL: 'https://avatars.githubusercontent.com/u/153?v=4',
                 isLoggedIn: true,
                 authenticated: true,
-                hasVerifiedEmail: true,
-                requiresVerifiedEmail: false,
                 siteHasCodyEnabled: true,
                 siteVersion: '5.1.0',
                 endpoint: 'https://example.com',

@@ -8,7 +8,6 @@ export type NewAuthStatusOptions = Omit<
     | 'codyApiVersion'
     | 'showInvalidAccessToken'
     | 'showInvalidAccessTokenError'
-    | 'requiresVerifiedEmail'
     | 'primaryEmail'
 > & {
     primaryEmail?:
@@ -40,17 +39,12 @@ export function newAuthStatus(options: NewAuthStatusOptions): AuthStatus {
         typeof options.primaryEmail === 'string'
             ? options.primaryEmail
             : options.primaryEmail?.email || ''
-    const requiresVerifiedEmail = isDotCom
-    const hasVerifiedEmail = requiresVerifiedEmail && options.hasVerifiedEmail
-    const isAllowed = !requiresVerifiedEmail || hasVerifiedEmail
     return {
         ...options,
         showInvalidAccessTokenError: false,
         endpoint,
         primaryEmail,
-        requiresVerifiedEmail,
-        hasVerifiedEmail,
-        isLoggedIn: siteHasCodyEnabled && authenticated && isAllowed,
+        isLoggedIn: siteHasCodyEnabled && authenticated,
         codyApiVersion: inferCodyApiVersion(siteVersion, isDotCom),
     }
 }

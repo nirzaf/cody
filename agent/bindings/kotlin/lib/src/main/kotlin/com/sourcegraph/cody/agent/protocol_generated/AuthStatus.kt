@@ -8,8 +8,6 @@ data class AuthStatus(
   val isLoggedIn: Boolean,
   val showInvalidAccessTokenError: Boolean,
   val authenticated: Boolean,
-  val hasVerifiedEmail: Boolean,
-  val requiresVerifiedEmail: Boolean,
   val siteHasCodyEnabled: Boolean,
   val siteVersion: String,
   val codyApiVersion: Long,
