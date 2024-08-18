@@ -17,7 +17,6 @@ const meta: Meta<typeof LoginSimplified> = {
     component: LoginSimplified,
     decorators: [VSCodeSidebar],
     args: {
-        simplifiedLoginRedirect: () => {},
         uiKindIsWeb: false,
         vscodeAPI: vscodeAPI,
         codyIDE: CodyIDE.VSCode,

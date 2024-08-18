@@ -448,18 +448,6 @@ export class AuthProvider implements AuthStatusProvider, vscode.Disposable {
         this.loadEndpointHistory()
     }
 
-    // Notifies the AuthProvider that the simplified onboarding experiment is
-    // kicking off an authorization flow. That flow ends when (if) this
-    // AuthProvider gets a call to tokenCallbackHandler.
-    public authProviderSimplifiedWillAttemptAuth(): void {
-        // FIXME: This is equivalent to what redirectToEndpointLogin does. But
-        // the existing design is weak--it mixes other authStatus with this
-        // endpoint and races with everything else this class does.
-
-        // Simplified onboarding only supports dotcom.
-        this.status.endpoint = DOTCOM_URL.toString()
-    }
-
     // Logs a telemetry event if the user has never authenticated to Sourcegraph.
     private handleFirstEverAuthentication(): void {
         if (localStorage.get(HAS_AUTHENTICATED_BEFORE_KEY)) {

@@ -12,7 +12,6 @@ import {
     type SerializedChatTranscript,
     type TelemetryRecorder,
 } from '@sourcegraph/cody-shared'
-import type { AuthMethod } from '../src/chat/protocol'
 import { LoadingPage } from './LoadingPage'
 import { LoginSimplified } from './OnboardingExperiment'
 import { ConnectionIssuesPage } from './Troubleshooting'
@@ -161,20 +160,6 @@ export const App: React.FunctionComponent<{ vscodeAPI: VSCodeWrapper }> = ({ vsc
         vscodeAPI.postMessage({ command: 'initialized' })
     }, [vscodeAPI])
 
-    const loginRedirect = useCallback(
-        (method: AuthMethod) => {
-            // We do not change the view here. We want to keep presenting the
-            // login buttons until we get a token so users don't get stuck if
-            // they close the browser during an auth flow.
-            vscodeAPI.postMessage({
-                command: 'auth',
-                authKind: 'simplified-onboarding',
-                authMethod: method,
-            })
-        },
-        [vscodeAPI]
-    )
-
     // V2 telemetry recorder
     const telemetryRecorder = useMemo(() => createWebviewTelemetryRecorder(vscodeAPI), [vscodeAPI])
 
@@ -217,7 +202,6 @@ export const App: React.FunctionComponent<{ vscodeAPI: VSCodeWrapper }> = ({ vsc
             {view === View.Login ? (
                 <div className={styles.outerContainer}>
                     <LoginSimplified
-                        simplifiedLoginRedirect={loginRedirect}
                         uiKindIsWeb={config.config.uiKindIsWeb}
                         vscodeAPI={vscodeAPI}
                         codyIDE={config.config.agentIDE ?? CodyIDE.VSCode}

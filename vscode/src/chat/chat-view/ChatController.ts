@@ -14,7 +14,6 @@ import {
     type ContextItem,
     type ContextItemOpenCtx,
     ContextItemSource,
-    DOTCOM_URL,
     type DefaultChatCommands,
     type EventSource,
     FeatureFlag,
@@ -57,10 +56,6 @@ import type { TelemetryEventParameters } from '@sourcegraph/telemetry'
 import type { URI } from 'vscode-uri'
 import { version as VSCEVersion } from '../../../package.json'
 import { View } from '../../../webviews/tabs/types'
-import {
-    closeAuthProgressIndicator,
-    startAuthProgressIndicator,
-} from '../../auth/auth-progress-indicator'
 import type { startTokenReceiver } from '../../auth/token-receiver'
 import { getContextFileFromUri } from '../../commands/context/file-path'
 import { getContextFileFromCursor, getContextFileFromSelection } from '../../commands/context/selection'
@@ -80,7 +75,6 @@ import { migrateAndNotifyForOutdatedModels } from '../../models/modelMigrator'
 import { mergedPromptsAndLegacyCommands } from '../../prompts/prompts'
 import { gitCommitIdFromGitExtension } from '../../repository/git-extension-api'
 import type { AuthProvider } from '../../services/AuthProvider'
-import { AuthProviderSimplified } from '../../services/AuthProviderSimplified'
 import { recordExposedExperimentsToSpan } from '../../services/open-telemetry/utils'
 import {
     handleCodeFromInsertAtCursor,
@@ -461,46 +455,6 @@ export class ChatController implements vscode.Disposable, vscode.WebviewViewProv
                     this.authProvider.redirectToEndpointLogin(message.endpoint)
                     break
                 }
-                if (message.authKind === 'simplified-onboarding') {
-                    const endpoint = DOTCOM_URL.href
-
-                    let tokenReceiverUrl: string | undefined = undefined
-                    closeAuthProgressIndicator()
-                    startAuthProgressIndicator()
-                    tokenReceiverUrl = await this.startTokenReceiver?.(
-                        endpoint,
-                        async (token, endpoint) => {
-                            closeAuthProgressIndicator()
-                            const authStatus = await this.authProvider.auth({ endpoint, token })
-                            telemetryRecorder.recordEvent(
-                                'cody.auth.fromTokenReceiver.web',
-                                'succeeded',
-                                {
-                                    metadata: {
-                                        success: authStatus?.isLoggedIn ? 1 : 0,
-                                    },
-                                }
-                            )
-                            if (!authStatus?.isLoggedIn) {
-                                void vscode.window.showErrorMessage(
-                                    'Authentication failed. Please check your token and try again.'
-                                )
-                            }
-                        }
-                    )
-
-                    const authProviderSimplified = new AuthProviderSimplified()
-                    const authMethod = message.authMethod || 'dotcom'
-                    const successfullyOpenedUrl = await authProviderSimplified.openExternalAuthUrl(
-                        this.authProvider,
-                        authMethod,
-                        tokenReceiverUrl
-                    )
-                    if (!successfullyOpenedUrl) {
-                        closeAuthProgressIndicator()
-                    }
-                    break
-                }
                 if (message.authKind === 'signin' && message.endpoint && message.value) {
                     await this.authProvider.auth({ endpoint: message.endpoint, token: message.value })
                     break
@@ -512,28 +466,6 @@ export class ChatController implements vscode.Disposable, vscode.WebviewViewProv
                 }
                 // cody.auth.signin or cody.auth.signout
                 await vscode.commands.executeCommand(`cody.auth.${message.authKind}`)
-                break
-            }
-            case 'simplified-onboarding': {
-                if (message.onboardingKind === 'web-sign-in-token') {
-                    void vscode.window
-                        .showInputBox({ prompt: 'Enter web sign-in token' })
-                        .then(async token => {
-                            if (!token) {
-                                return
-                            }
-                            const authStatus = await this.authProvider.auth({
-                                endpoint: DOTCOM_URL.href,
-                                token,
-                            })
-                            if (!authStatus?.isLoggedIn) {
-                                void vscode.window.showErrorMessage(
-                                    'Authentication failed. Please check your token and try again.'
-                                )
-                            }
-                        })
-                    break
-                }
                 break
             }
             case 'troubleshoot/reloadAuth': {

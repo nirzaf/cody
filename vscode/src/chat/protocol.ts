@@ -148,16 +148,12 @@ export type WebviewMessage =
       }
     | {
           command: 'auth'
-          authKind: 'signin' | 'signout' | 'support' | 'callback' | 'simplified-onboarding'
+          authKind: 'signin' | 'signout' | 'support' | 'callback'
           endpoint?: string | undefined | null
           value?: string | undefined | null
           authMethod?: AuthMethod | undefined | null
       }
     | { command: 'abort' }
-    | {
-          command: 'simplified-onboarding'
-          onboardingKind: 'web-sign-in-token'
-      }
     | {
           command: 'getUserContext'
           /** @deprecated Use the `queryContextItems` message instead. */
