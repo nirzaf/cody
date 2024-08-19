@@ -148,6 +148,8 @@ export const PromptEditor: FunctionComponent<Props> = ({
                 })
             },
             setInitialContextMentions(items: ContextItem[]) {
+                console.log('# setInitialContextMentions', items)
+
                 const editor = editorRef.current
                 if (!editor) {
                     return

@@ -1,15 +1,20 @@
 import * as vscode from 'vscode'
+import { WorkspaceRepoMapper } from '../context/workspace-repo-mapper'
 import { logDebug } from '../log'
 import { gitCommitIdFromGitExtension, vscodeGitAPI } from './git-extension-api'
 import { repoNameResolver } from './repo-name-resolver'
 
 export interface RepoRevMetaData extends RepoMetaData {
     commit?: string
+    remoteID?: string
 }
 
 export class WorkspaceReposMonitor implements vscode.Disposable {
     private disposables: vscode.Disposable[] = []
     private repoMetadata = new Map<string, Promise<RepoRevMetaData[]>>()
+
+    // TODO(beyang): should merge WorkspaceRepoMapper and WorkspaceRepoMonitor
+    private workspaceRepoMapper = new WorkspaceRepoMapper()
 
     constructor() {
         for (const folderURI of this.getFolderURIs()) {
@@ -18,25 +23,6 @@ export class WorkspaceReposMonitor implements vscode.Disposable {
         this.disposables.push(
             vscode.workspace.onDidChangeWorkspaceFolders(evt => this.onDidChangeWorkspaceFolders(evt))
         )
-    }
-
-    private getFolderURIs(): vscode.Uri[] {
-        return vscode.workspace.workspaceFolders?.map(f => f.uri) ?? []
-    }
-
-    private addWorkspaceFolder(folderURI: vscode.Uri): void {
-        const repoMetadata: Promise<RepoRevMetaData[]> = fetchRepoMetadataForFolder(folderURI).then(
-            metadatas =>
-                metadatas.map(m => ({
-                    ...m,
-                    commit: gitCommitIdFromGitExtension(folderURI),
-                }))
-        )
-        this.repoMetadata.set(folderURI.toString(), repoMetadata)
-    }
-
-    private removeWorkspaceFolder(folderURI: vscode.Uri): void {
-        this.repoMetadata.delete(folderURI.toString())
     }
 
     public dispose(): void {
@@ -51,6 +37,28 @@ export class WorkspaceReposMonitor implements vscode.Disposable {
         | { isPublic: true; repoMetadata: RepoRevMetaData[] }
     > {
         return _getRepoMetadataIfPublic(this.getFolderURIs(), this.repoMetadata)
+    }
+
+    private getFolderURIs(): vscode.Uri[] {
+        return vscode.workspace.workspaceFolders?.map(f => f.uri) ?? []
+    }
+
+    private addWorkspaceFolder(folderURI: vscode.Uri): void {
+        const repoMetadata: Promise<RepoRevMetaData[]> = fetchRepoMetadataForFolder(folderURI).then(
+            metadatas =>
+                Promise.all(
+                    metadatas.map(async m => ({
+                        ...m,
+                        commit: gitCommitIdFromGitExtension(folderURI),
+                        remoteID: (await this.workspaceRepoMapper.repoForCodebase(m.repoName))?.id,
+                    }))
+                )
+        )
+        this.repoMetadata.set(folderURI.toString(), repoMetadata)
+    }
+
+    private removeWorkspaceFolder(folderURI: vscode.Uri): void {
+        this.repoMetadata.delete(folderURI.toString())
     }
 
     private onDidChangeWorkspaceFolders(event: vscode.WorkspaceFoldersChangeEvent): void {

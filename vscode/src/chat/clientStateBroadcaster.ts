@@ -60,6 +60,8 @@ export function startClientStateBroadcaster({
             items.push(item)
         }
 
+        console.log('######### broadcasting client state', items)
+
         postMessage({ type: 'clientState', value: { initialContext: items } })
     }
 
@@ -86,6 +88,16 @@ export function startClientStateBroadcaster({
         })
     )
 
+    // TODO(beyang):
+    // if (remoteSearch) {
+    //     disposables.push(
+    //         remoteSearch.onDidChangeStatus(() => {
+    //             // Background action, so it's fine to debounce.
+    //             void sendClientState('debounce')
+    //         })
+    //     )
+    // }
+
     // Don't debounce for the first invocation so we immediately reflect the state in the UI.
     void sendClientState('immediate')
 
@@ -101,6 +113,8 @@ export function getCorpusContextItemsForEditorState({
     // remote search). There should be a single internal thing in Cody that lets you monitor the
     // user's current codebase.
     if (remoteSearch) {
+        // NEXT(beyang): use WorkspaceReposMonitor here
+
         // TODO(sqs): Track the last-used repositories. Right now it just uses the current
         // repository.
         //

@@ -236,6 +236,18 @@ export class ChatController implements vscode.Disposable, vscode.WebviewViewProv
             }),
         })
 
+        // // workspaceReposMonitor?.getRepoMetadataIfPublic
+        // // TODO(beyang)
+        // this.remoteSearch?.setRepos(
+        //     [
+        //         {
+        //             name: 'github.com/sourcegraph/sourcegraph',
+        //             id: 'TODO',
+        //         },
+        //     ],
+        //     RepoInclusion.Automatic
+        // )
+
         this.disposables.push(
             startClientStateBroadcaster({
                 remoteSearch: this.remoteSearch,
