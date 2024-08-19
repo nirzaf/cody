@@ -39,6 +39,15 @@ export class WorkspaceReposMonitor implements vscode.Disposable {
         return _getRepoMetadataIfPublic(this.getFolderURIs(), this.repoMetadata)
     }
 
+    public async getRepoMetadata(): Promise<RepoRevMetaData[]> {
+        // NEXT(beyang):  implement this and then pop over to startClientStateBroadcaster
+        // const folderURIs = this.getFolderURIs()
+        // const repoMetadata = await Promise.all(
+        //     folderURIs.map(folderURI => this.repoMetadata.get(folderURI.toString())?? [])
+        // )
+        // return repoMetadata.flat()
+    }
+
     private getFolderURIs(): vscode.Uri[] {
         return vscode.workspace.workspaceFolders?.map(f => f.uri) ?? []
     }
