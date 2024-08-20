@@ -679,7 +679,7 @@ export class ChatController implements vscode.Disposable, vscode.WebviewViewProv
                 // If the legacyAddEnhancedContext param is true, then pretend there is a `@repo` or `@tree`
                 // mention and a mention of the current selection to match the old behavior.
                 if (legacyAddEnhancedContext) {
-                    const corpusMentions = getCorpusContextItemsForEditorState({
+                    const corpusMentions = await getCorpusContextItemsForEditorState({
                         remoteSearch: this.remoteSearch,
                     })
                     mentions = mentions.concat(corpusMentions)

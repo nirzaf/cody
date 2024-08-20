@@ -11,6 +11,7 @@ import * as vscode from 'vscode'
 import { getSelectionOrFileContext } from '../commands/context/selection'
 import { createRemoteRepositoryMention } from '../context/openctx/remoteRepositorySearch'
 import type { RemoteSearch } from '../context/remote-search'
+import { workspaceReposMonitor } from '../repository/repo-metadata-from-git-api'
 import type { ChatModel } from './chat-view/ChatModel'
 import { contextItemMentionFromOpenCtxItem } from './context/chatContext'
 import type { ExtensionMessage } from './protocol'
@@ -35,7 +36,7 @@ export function startClientStateBroadcaster({
         const items: ContextItem[] = []
 
         const corpusItems = getCorpusContextItemsForEditorState({ remoteSearch })
-        items.push(...corpusItems)
+        items.push(...(await corpusItems))
 
         const { input, context } = chatModel.contextWindow
         const userContextSize = context?.user ?? input
@@ -88,6 +89,10 @@ export function startClientStateBroadcaster({
         })
     )
 
+    if (remoteSearch) {
+        void sendClientState('debounce')
+    }
+
     // TODO(beyang):
     // if (remoteSearch) {
     //     disposables.push(
@@ -104,41 +109,62 @@ export function startClientStateBroadcaster({
     return vscode.Disposable.from(...disposables)
 }
 
-export function getCorpusContextItemsForEditorState({
+export async function getCorpusContextItemsForEditorState({
     remoteSearch,
-}: { remoteSearch: RemoteSearch | null }): ContextItem[] {
+}: { remoteSearch: RemoteSearch | null }): Promise<ContextItem[]> {
     const items: ContextItem[] = []
 
     // TODO(sqs): Make this consistent between self-serve (no remote search) and enterprise (has
     // remote search). There should be a single internal thing in Cody that lets you monitor the
     // user's current codebase.
-    if (remoteSearch) {
-        // NEXT(beyang): use WorkspaceReposMonitor here
-
-        // TODO(sqs): Track the last-used repositories. Right now it just uses the current
-        // repository.
-        //
-        // Make a repository item that is the same as what the @-repository OpenCtx provider
-        // would return.
-        const repos = remoteSearch.getRepos('all')
-        for (const repo of repos) {
-            if (contextFiltersProvider.isRepoNameIgnored(repo.name)) {
+    if (remoteSearch && workspaceReposMonitor) {
+        const repoMetadata = await workspaceReposMonitor?.getRepoMetadata()
+        for (const repo of repoMetadata) {
+            if (contextFiltersProvider.isRepoNameIgnored(repo.repoName)) {
+                continue
+            }
+            if (repo.remoteID === undefined) {
                 continue
             }
             items.push({
                 ...contextItemMentionFromOpenCtxItem(
                     createRemoteRepositoryMention({
-                        id: repo.id,
-                        name: repo.name,
-                        url: repo.name,
+                        id: repo.remoteID,
+                        name: repo.repoName,
+                        url: repo.repoName,
                     })
                 ),
                 title: 'Current Repository',
-                description: repo.name,
+                description: repo.repoName,
                 source: ContextItemSource.Initial,
                 icon: 'folder',
             })
         }
+
+        // // TODO(sqs): Track the last-used repositories. Right now it just uses the current
+        // // repository.
+        // //
+        // // Make a repository item that is the same as what the @-repository OpenCtx provider
+        // // would return.
+        // const repos = remoteSearch.getRepos('all')
+        // for (const repo of repos) {
+        //     if (contextFiltersProvider.isRepoNameIgnored(repo.name)) {
+        //         continue
+        //     }
+        //     items.push({
+        //         ...contextItemMentionFromOpenCtxItem(
+        //             createRemoteRepositoryMention({
+        //                 id: repo.id,
+        //                 name: repo.name,
+        //                 url: repo.name,
+        //             })
+        //         ),
+        //         title: 'Current Repository',
+        //         description: repo.name,
+        //         source: ContextItemSource.Initial,
+        //         icon: 'folder',
+        //     })
+        // }
     } else {
         // TODO(sqs): Support multi-root. Right now, this only supports the 1st workspace root.
         const workspaceFolder = vscode.workspace.workspaceFolders?.at(0)

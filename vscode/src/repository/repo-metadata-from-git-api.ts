@@ -40,12 +40,16 @@ export class WorkspaceReposMonitor implements vscode.Disposable {
     }
 
     public async getRepoMetadata(): Promise<RepoRevMetaData[]> {
-        // NEXT(beyang):  implement this and then pop over to startClientStateBroadcaster
-        // const folderURIs = this.getFolderURIs()
-        // const repoMetadata = await Promise.all(
-        //     folderURIs.map(folderURI => this.repoMetadata.get(folderURI.toString())?? [])
-        // )
-        // return repoMetadata.flat()
+        const folderURIs = this.getFolderURIs()
+        const m: Promise<RepoRevMetaData[]>[] = []
+        for (const folderURI of folderURIs) {
+            const p = this.repoMetadata.get(folderURI.toString())
+            if (p) {
+                m.push(p)
+            }
+        }
+        const repoMetadata = await Promise.all(m)
+        return repoMetadata.flat()
     }
 
     private getFolderURIs(): vscode.Uri[] {
@@ -59,6 +63,8 @@ export class WorkspaceReposMonitor implements vscode.Disposable {
                     metadatas.map(async m => ({
                         ...m,
                         commit: gitCommitIdFromGitExtension(folderURI),
+
+                        // TODO(beyang): verify if this is undefined
                         remoteID: (await this.workspaceRepoMapper.repoForCodebase(m.repoName))?.id,
                     }))
                 )
@@ -159,7 +165,6 @@ export async function _getRepoMetadataIfPublic(
 }
 
 interface RepoMetaData {
-    owner: string
     repoName: string
     isPublic: boolean
 }
@@ -204,7 +209,7 @@ export class RepoMetadatafromGitApi {
 
     private async queryGitHubApi(owner: string, repoName: string): Promise<RepoMetaData | undefined> {
         const apiUrl = `https://api.github.com/repos/${owner}/${repoName}`
-        const metadata = { owner, repoName, isPublic: false }
+        const metadata = { repoName: `github.com/${owner}/${repoName}`, isPublic: false }
         try {
             const response = await fetch(apiUrl, { method: 'HEAD' })
             metadata.isPublic = response.ok

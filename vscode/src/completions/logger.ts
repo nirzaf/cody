@@ -695,7 +695,7 @@ export function loaded(params: LoadedParams): void {
         const instance = RepoMetadatafromGitApi.getInstance()
         // Get the metadata only if already cached, We don't wait for the network call here.
         const gitRepoMetadata = instance.getRepoMetadataIfCached(inlineContextParams.gitUrl)
-        if (gitRepoMetadata === undefined || gitRepoMetadata.isPublicOnGitHubDotCom === false) {
+        if (gitRepoMetadata === undefined || !gitRepoMetadata.isPublic) {
             // 🚨 SECURITY: For Non-Public git Repos, We cannot log any code related information, just git url and commit.
             event.params.inlineCompletionItemContext = {
                 gitUrl: inlineContextParams.gitUrl,
