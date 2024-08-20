@@ -95,6 +95,7 @@ export const DEEPSEEK_CODER_7B = 'deepseek-coder-7b'
 // Huggingface link (https://huggingface.co/deepseek-ai/DeepSeek-Coder-V2-Lite-Base)
 export const DEEPSEEK_CODER_V2_LITE_BASE = 'deepseek-coder-v2-lite-base'
 
+export const DEEPSEEK_CODER_V2_LITE_BASE_DIRECT_ROUTE = 'deepseek-coder-v2-lite-base-direct-route'
 // Context window experiments with DeepSeek Model
 export const DEEPSEEK_CODER_V2_LITE_BASE_WINDOW_4096 = 'deepseek-coder-v2-lite-base-context-4096'
 export const DEEPSEEK_CODER_V2_LITE_BASE_WINDOW_8192 = 'deepseek-coder-v2-lite-base-context-8192'
@@ -128,6 +129,8 @@ const MODEL_MAP = {
     [DEEPSEEK_CODER_1P3_B]: 'fireworks/accounts/sourcegraph/models/custom-deepseek-1p3b-base-hf-version',
     [DEEPSEEK_CODER_7B]: 'fireworks/accounts/sourcegraph/models/deepseek-coder-7b-base',
     [DEEPSEEK_CODER_V2_LITE_BASE]: 'accounts/sourcegraph/models/deepseek-coder-v2-lite-base',
+    [DEEPSEEK_CODER_V2_LITE_BASE_DIRECT_ROUTE]:
+        'accounts/sourcegraph/models/deepseek-coder-v2-lite-base',
     [CODE_QWEN_7B]: 'accounts/sourcegraph/models/code-qwen-1p5-7b',
     [DEEPSEEK_CODER_V2_LITE_BASE_WINDOW_4096]: 'accounts/sourcegraph/models/deepseek-coder-v2-lite-base',
     [DEEPSEEK_CODER_V2_LITE_BASE_WINDOW_8192]: 'accounts/sourcegraph/models/deepseek-coder-v2-lite-base',
@@ -168,6 +171,7 @@ function getMaxContextTokens(model: FireworksModel): number {
         case DEEPSEEK_CODER_1P3_B:
         case DEEPSEEK_CODER_7B:
         case DEEPSEEK_CODER_V2_LITE_BASE:
+        case DEEPSEEK_CODER_V2_LITE_BASE_DIRECT_ROUTE:
         case CODE_QWEN_7B: {
             return 2048
         }
@@ -206,6 +210,7 @@ class FireworksProvider extends Provider {
     // Todo: Delete this variable once the data is collected.
     private shouldAddArtificialDelayForExperiment = false
     private anonymousUserID: string | undefined
+    private shouldEnableDirectRoute = false
 
     constructor(
         options: ProviderOptions,
@@ -234,6 +239,7 @@ class FireworksProvider extends Provider {
             this.authStatus.endpoint?.includes('sourcegraph.test') ||
                 this.authStatus.endpoint?.includes('localhost')
         )
+        this.shouldEnableDirectRoute = this.checkIfDirectRouteShouldBeEnabled()
 
         const isNode = typeof process !== 'undefined'
         this.fastPathAccessToken =
@@ -253,6 +259,13 @@ class FireworksProvider extends Provider {
             this.fastPathAccessToken = config.autocompleteExperimentalFireworksOptions?.token
             this.fireworksConfig = config.autocompleteExperimentalFireworksOptions
         }
+    }
+
+    private checkIfDirectRouteShouldBeEnabled(): boolean {
+        if (this.model === DEEPSEEK_CODER_V2_LITE_BASE_DIRECT_ROUTE) {
+            return true
+        }
+        return false
     }
 
     private getFIMPromptExtractorForModel(): FIMModelSpecificPromptExtractor {
@@ -554,9 +567,10 @@ class FireworksProvider extends Provider {
                     await requestParams.messages[0]!.text!.toFilteredString(contextFiltersProvider)
 
                 // c.f. https://readme.fireworks.ai/reference/createcompletion
+                const modelIdentifier =
+                    self.fireworksConfig?.model || requestParams.model?.replace(/^fireworks\//, '')
                 const fireworksRequest = {
-                    model:
-                        self.fireworksConfig?.model || requestParams.model?.replace(/^fireworks\//, ''),
+                    model: modelIdentifier,
                     prompt,
                     max_tokens: requestParams.maxTokensToSample,
                     echo: false,
@@ -570,8 +584,9 @@ class FireworksProvider extends Provider {
                     ],
                     stream: true,
                     languageId: self.options.document.languageId,
-                    anonymousUserID: self.anonymousUserID,
+                    user: self.anonymousUserID,
                 }
+
                 const headers = new Headers(self.getCustomHeaders())
                 // Force HTTP connection reuse to reduce latency.
                 // c.f. https://github.com/microsoft/vscode/issues/173861
@@ -590,6 +605,16 @@ class FireworksProvider extends Provider {
                         lineNumberDependentCompletionParams,
                     }).timeoutMs.toString()
                 )
+                if (self.shouldEnableDirectRoute) {
+                    // Add the following headers to the request to enable the direct route.
+                    if (modelIdentifier) {
+                        headers.set('X-Sourcegraph-Model-Identifier', modelIdentifier)
+                    }
+                    headers.set('X-Sourcegraph-Use-Direct-Route', 'true')
+                    if (self.anonymousUserID) {
+                        headers.set('X-Sourcegraph-Anonymous-User-ID', self.anonymousUserID)
+                    }
+                }
                 addTraceparent(headers)
 
                 logDebug('FireworksProvider', 'fetch', { verbose: { url, fireworksRequest } })
