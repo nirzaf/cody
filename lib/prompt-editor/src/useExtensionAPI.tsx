@@ -18,6 +18,7 @@ export const ExtensionAPIProviderFromVSCodeAPI: FunctionComponent<{
             mentionMenuData: proxyExtensionAPI(messageAPI, 'mentionMenuData'),
             evaluatedFeatureFlag: proxyExtensionAPI(messageAPI, 'evaluatedFeatureFlag'),
             prompts: proxyExtensionAPI(messageAPI, 'prompts'),
+            detectIntent: proxyExtensionAPI(messageAPI, 'detectIntent'),
         }
     }, [vscodeAPI])
     return <context.Provider value={extensionAPI}>{children}</context.Provider>

@@ -327,17 +327,17 @@ export class ChatsController implements vscode.Disposable {
         }
         const abortSignal = provider.startNewSubmitOrEditOperation()
         const editorState = editorStateFromPromptString(text)
-        await provider.handleUserMessageSubmission(
-            uuid.v4(),
-            text,
+        await provider.handleUserMessageSubmission({
+            requestID: uuid.v4(),
+            inputText: text,
             submitType,
-            contextFiles ?? [],
+            mentions: contextFiles ?? [],
             editorState,
-            addEnhancedContext ?? true,
-            abortSignal,
+            legacyAddEnhancedContext: addEnhancedContext ?? true,
+            signal: abortSignal,
             source,
-            command
-        )
+            command,
+        })
         return provider
     }
 

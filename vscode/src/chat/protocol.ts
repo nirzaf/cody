@@ -2,6 +2,7 @@ import type { URI } from 'vscode-uri'
 
 import type {
     AuthStatus,
+    ChatMessage,
     ClientStateForWebview,
     CodyIDE,
     ConfigurationWithEndpoint,
@@ -269,6 +270,7 @@ export interface WebviewSubmitMessage extends WebviewContextMessage {
 
     /** An opaque value representing the text editor's state. @see {ChatMessage.editorState} */
     editorState?: unknown | undefined | null
+    intent?: ChatMessage['intent']
 }
 
 interface WebviewEditMessage extends WebviewContextMessage {
@@ -277,6 +279,7 @@ interface WebviewEditMessage extends WebviewContextMessage {
 
     /** An opaque value representing the text editor's state. @see {ChatMessage.editorState} */
     editorState?: unknown | undefined | null
+    intent?: ChatMessage['intent']
 }
 
 interface WebviewContextMessage {
@@ -303,6 +306,7 @@ export interface ConfigurationSubsetForWebview
         | 'internalDebugContext'
     > {
     smartApply: boolean
+    experimentalOneBox: boolean
     // Type/location of the current webview.
     webviewType?: WebviewType | undefined | null
     // Whether support running multiple webviews (e.g. sidebar w/ multiple editor panels).

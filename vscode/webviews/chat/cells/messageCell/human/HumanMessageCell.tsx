@@ -41,6 +41,8 @@ export const HumanMessageCell: FunctionComponent<{
 
     /** For use in storybooks only. */
     __storybook__focus?: boolean
+
+    experimentalOneBoxEnabled?: boolean
 }> = memo(
     ({
         message,
@@ -58,6 +60,7 @@ export const HumanMessageCell: FunctionComponent<{
         className,
         editorRef,
         __storybook__focus,
+        experimentalOneBoxEnabled,
     }) => {
         const messageJSON = JSON.stringify(message)
         const initialEditorState = useMemo(
@@ -92,6 +95,7 @@ export const HumanMessageCell: FunctionComponent<{
                         isEditorInitiallyFocused={isEditorInitiallyFocused}
                         editorRef={editorRef}
                         __storybook__focus={__storybook__focus}
+                        experimentalOneBoxEnabled={experimentalOneBoxEnabled}
                     />
                 }
                 className={className}

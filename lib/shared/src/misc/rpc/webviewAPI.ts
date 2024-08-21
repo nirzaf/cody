@@ -1,4 +1,5 @@
 import type { Observable } from 'observable-fns'
+import type { ChatMessage } from '../../chat/transcript/messages'
 import type { ContextItem } from '../../codebase-context/messages'
 import type { CodyCommand } from '../../commands/types'
 import type { FeatureFlag } from '../../experimentation/FeatureFlagProvider'
@@ -24,6 +25,11 @@ export interface WebviewToExtensionAPI {
      * the Prompt Library).
      */
     prompts(query: string): Observable<PromptsResult>
+
+    /**
+     * Detect whether the given query is a chat message or a search query.
+     */
+    detectIntent(query: string): Observable<ChatMessage['intent']>
 }
 
 export interface MentionMenuData {

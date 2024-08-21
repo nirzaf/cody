@@ -74,6 +74,7 @@ export const AppWrapperForTest: FunctionComponent<{ children: ReactNode }> = ({ 
                         prompts: { type: 'results', results: FIXTURE_PROMPTS },
                         commands: FIXTURE_COMMANDS,
                     }),
+                    detectIntent: () => Observable.of(),
                 },
             } satisfies Wrapper<ComponentProps<typeof ExtensionAPIProviderForTestsOnly>['value']>,
             {
